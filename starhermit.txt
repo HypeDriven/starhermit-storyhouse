@@ -1,0 +1,3 @@
+name=Storyhouse
+launch=index.html
+server=server.js

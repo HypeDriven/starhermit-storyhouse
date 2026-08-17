@@ -1,0 +1,12 @@
+{
+  "name": "storyhouse",
+  "version": "1.0.0",
+  "description": "Storyhouse — a cutaway dollhouse storytelling sandbox.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Storyhouse — arrange characters and props across the rooms of a cutaway dollhouse to create open-ended stories with persistent scenes.">
+<meta name="theme-color" content="#2a2033">
+<title>Storyhouse</title>
+<link rel="stylesheet" href="./styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 14 16 4l12 10v14H4z' fill='%23c98a5e'/%3E%3Crect x='8' y='17' width='6' height='6' fill='%23f3e9c8'/%3E%3Crect x='18' y='17' width='6' height='6' fill='%237fb069'/%3E%3C/svg%3E">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl" aria-hidden="true"></canvas>
+
+  <!-- ============================== PLAY HUD ============================== -->
+  <div id="hud" hidden>
+    <header id="hud-top">
+      <div id="hud-heading">
+        <h2 id="hud-stage-title">Stage</h2>
+        <p id="hud-objective-text" role="status"></p>
+      </div>
+      <div id="hud-status" role="status" aria-label="Round status">
+        <span id="hud-moves" class="hud-chip" title="Moves used"></span>
+        <span id="hud-clock" class="hud-chip" title="Time"></span>
+        <span id="hud-score" class="hud-chip" title="Score"></span>
+      </div>
+      <div id="hud-top-buttons">
+        <button id="btn-mirror" class="chip-btn" type="button" title="Text version of the house" aria-pressed="false">☰ <span class="btn-label">Text</span></button>
+        <button id="btn-hint" class="chip-btn" type="button" title="Hint (H)">💡 <span class="btn-label">Hint</span></button>
+        <button id="btn-undo" class="chip-btn" type="button" title="Undo (U)">↩ <span class="btn-label">Undo</span></button>
+        <button id="btn-pause" class="chip-btn" type="button" title="Pause (Esc or P)">⏸ <span class="btn-label">Pause</span></button>
+      </div>
+    </header>
+
+    <button id="drawer-left-toggle" class="drawer-toggle" type="button" aria-expanded="false" aria-controls="rail-left">Goals</button>
+    <aside id="rail-left" aria-label="Objectives and discovery cards">
+      <h3>Discovery cards</h3>
+      <ul id="card-list" class="card-list"></ul>
+      <h3>Story so far</h3>
+      <ol id="beat-log" class="beat-log"></ol>
+    </aside>
+
+    <button id="drawer-right-toggle" class="drawer-toggle" type="button" aria-expanded="false" aria-controls="rail-right">Actions</button>
+    <aside id="rail-right" aria-label="Contextual actions">
+      <h3 id="selection-heading">Selection</h3>
+      <p id="selection-desc" class="selection-desc">Nothing selected.</p>
+      <div id="context-actions" class="context-actions"></div>
+      <div id="lesson-box" hidden>
+        <h3 id="lesson-title"></h3>
+        <p id="lesson-step-text"></p>
+        <p id="lesson-progress"></p>
+      </div>
+      <button id="btn-finish" class="primary-btn" type="button">Save scene ✦</button>
+      <p id="finish-note" class="fine-print"></p>
+    </aside>
+
+    <div id="tray" role="toolbar" aria-label="Piece tray" aria-orientation="horizontal"></div>
+    <p id="canvas-keys" class="fine-print">Arrows move the cursor · Enter select/place · Esc cancel · H hint · U undo · C camera</p>
+  </div>
+
+  <!-- ============================== SCREENS ============================== -->
+  <main id="screens">
+    <section id="screen-title" class="screen" aria-labelledby="title-heading" hidden>
+      <div class="title-block">
+        <h1 id="title-heading">Storyhouse</h1>
+        <p class="tagline">A little house full of almost-stories. Place the pieces, make the moments, keep the scenes.</p>
+      </div>
+      <nav class="title-nav" aria-label="Main menu">
+        <button id="btn-play" class="primary-btn big" type="button">Play</button>
+        <div class="title-grid">
+          <button class="menu-btn" type="button" data-goto="daily">Daily Story<p class="menu-sub" id="daily-sub">One shared house, today only</p></button>
+          <button class="menu-btn" type="button" data-goto="journey">Journey<p class="menu-sub" id="journey-sub">45 stages</p></button>
+          <button class="menu-btn" type="button" data-goto="learn">Learn<p class="menu-sub">Six little lessons</p></button>
+          <button class="menu-btn" type="button" data-goto="practice">Practice<p class="menu-sub">Your house, your pace</p></button>
+          <button class="menu-btn" type="button" data-goto="challenge">Challenge<p class="menu-sub">Limits and clocks</p></button>
+          <button class="menu-btn" type="button" data-goto="score">Score Chase<p class="menu-sub">Seeded and ranked</p></button>
+        </div>
+      </nav>
+      <div class="title-footer">
+        <button class="text-btn" type="button" data-goto="scrapbook">Scrapbook</button>
+        <button class="text-btn" type="button" data-goto="help">How to play</button>
+        <button class="text-btn" type="button" data-goto="settings">Settings</button>
+        <span id="profile-badge" class="profile-badge"></span>
+      </div>
+      <p id="resume-line" class="resume-line" hidden><button id="btn-resume-session" class="text-btn" type="button">Continue your paused story →</button></p>
+    </section>
+
+    <section id="screen-setup" class="screen" aria-labelledby="setup-heading" hidden>
+      <h1 id="setup-heading">Mode</h1>
+      <div id="setup-body" class="setup-body"></div>
+      <div class="row-btn">
+        <button id="btn-setup-start" class="primary-btn big" type="button">Start</button>
+        <button id="btn-setup-back" class="text-btn" type="button">Back</button>
+      </div>
+    </section>
+
+    <section id="screen-results" class="screen" aria-labelledby="results-heading" hidden>
+      <h1 id="results-heading">Scene saved</h1>
+      <div id="results-stars" class="stars" aria-label="Stars earned"></div>
+      <table id="results-table" class="score-table">
+        <caption class="sr-only">Score breakdown</caption>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+      <div id="results-cards" class="results-cards"></div>
+      <div id="results-achievements" class="results-achievements"></div>
+      <div id="results-compare" class="results-compare"></div>
+      <div class="row-btn">
+        <button id="btn-results-next" class="primary-btn" type="button">Next</button>
+        <button id="btn-results-replay" class="menu-btn small" type="button">Replay</button>
+        <button id="btn-results-home" class="text-btn" type="button">Home</button>
+      </div>
+    </section>
+
+    <section id="screen-journey" class="screen" aria-labelledby="journey-heading" hidden>
+      <h1 id="journey-heading">Journey</h1>
+      <div id="journey-map" class="journey-map"></div>
+      <div class="row-btn"><button class="text-btn" type="button" data-goto="title">Back</button></div>
+    </section>
+
+    <section id="screen-scrapbook" class="screen" aria-labelledby="scrapbook-heading" hidden>
+      <h1 id="scrapbook-heading">Scrapbook</h1>
+      <p class="fine-print">Your saved scenes live here — persistent, replayable, yours.</p>
+      <div id="scene-list" class="scene-list"></div>
+      <h2>Mastery track</h2>
+      <div id="mastery-track" class="mastery-track"></div>
+      <h2>Achievements</h2>
+      <ul id="achievement-list" class="achievement-list"></ul>
+      <div class="row-btn"><button class="text-btn" type="button" data-goto="title">Back</button></div>
+    </section>
+
+    <section id="screen-help" class="screen" aria-labelledby="help-heading" hidden>
+      <h1 id="help-heading">How to play</h1>
+      <div id="help-cards" class="help-cards"></div>
+      <h2>Controls</h2>
+      <div id="help-bindings" class="help-bindings"></div>
+      <div class="row-btn"><button class="text-btn" type="button" data-goto="title">Back</button></div>
+    </section>
+
+    <section id="screen-settings" class="screen" aria-labelledby="settings-heading" hidden>
+      <h1 id="settings-heading">Settings</h1>
+      <form id="settings-form" class="settings-form">
+        <fieldset>
+          <legend>Audio</legend>
+          <label>Music <input type="range" id="set-music" min="0" max="100" step="1"><output for="set-music"></output></label>
+          <label>Effects <input type="range" id="set-effects" min="0" max="100" step="1"><output for="set-effects"></output></label>
+          <label>Ambience <input type="range" id="set-ambience" min="0" max="100" step="1"><output for="set-ambience"></output></label>
+          <label>Voice <input type="range" id="set-voice" min="0" max="100" step="1"><output for="set-voice"></output></label>
+          <label class="check"><input type="checkbox" id="set-mute"> Mute all</label>
+          <label class="check"><input type="checkbox" id="set-captions"> Captions for meaningful audio</label>
+        </fieldset>
+        <fieldset>
+          <legend>Graphics</legend>
+          <label>Quality tier
+            <select id="set-quality">
+              <option value="auto">Auto (recommended)</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="set-reduced-motion"> Reduced motion</label>
+          <label class="check"><input type="checkbox" id="set-high-contrast"> High contrast</label>
+        </fieldset>
+        <fieldset>
+          <legend>Accessibility</legend>
+          <label class="check"><input type="checkbox" id="set-large-text"> Larger text</label>
+          <label>Color palette
+            <select id="set-palette">
+              <option value="default">Default</option>
+              <option value="protan">Protanopia-safe</option>
+              <option value="deutan">Deuteranopia-safe</option>
+              <option value="tritan">Tritanopia-safe</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="set-lefty"> Left-handed controls</label>
+          <label>Placement style
+            <select id="set-drag-mode">
+              <option value="both">Tap or drag</option>
+              <option value="tap">Tap to select, tap to place</option>
+              <option value="drag">Drag to place</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="set-timing-assist"> Timing assistance (scores become casual)</label>
+          <label class="check"><input type="checkbox" id="set-haptics-off"> Haptics off</label>
+          <button type="button" id="btn-replay-tutorials" class="menu-btn small">Replay tutorials</button>
+        </fieldset>
+        <fieldset>
+          <legend>Controls — keyboard &amp; gamepad</legend>
+          <div id="bindings-editor" class="bindings-editor"></div>
+          <button type="button" id="btn-reset-bindings" class="menu-btn small">Reset bindings</button>
+        </fieldset>
+        <fieldset>
+          <legend>Data &amp; privacy</legend>
+          <label class="check"><input type="checkbox" id="set-telemetry"> Share anonymous usage funnel (start, tutorial steps, round end, errors)</label>
+          <button type="button" id="btn-wipe" class="menu-btn small danger">Erase local progress</button>
+        </fieldset>
+      </form>
+      <div class="row-btn"><button class="text-btn" type="button" data-goto="title">Back</button></div>
+    </section>
+  </main>
+
+  <!-- ============================== OVERLAYS ============================== -->
+  <div id="overlay-pause" class="overlay" role="dialog" aria-modal="true" aria-labelledby="pause-heading" hidden>
+    <div class="overlay-card">
+      <h1 id="pause-heading">Paused</h1>
+      <div class="col-btn">
+        <button id="btn-resume" class="primary-btn big" type="button">Resume</button>
+        <button id="btn-pause-settings" class="menu-btn" type="button">Settings</button>
+        <button id="btn-pause-help" class="menu-btn" type="button">How to play</button>
+        <button id="btn-pause-restart" class="menu-btn" type="button">Restart story</button>
+        <button id="btn-pause-leave" class="text-btn" type="button">Save &amp; leave</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay-dialog" class="overlay" role="dialog" aria-modal="true" aria-labelledby="dialog-heading" hidden>
+    <div class="overlay-card">
+      <h1 id="dialog-heading"></h1>
+      <p id="dialog-text"></p>
+      <div id="dialog-buttons" class="row-btn"></div>
+    </div>
+  </div>
+
+  <div id="overlay-countdown" class="overlay passthrough" aria-hidden="true" hidden>
+    <div id="countdown-text" class="countdown-text"></div>
+  </div>
+
+  <div id="toast-region" aria-live="polite"></div>
+
+  <!-- ============================== ACCESSIBILITY ============================== -->
+  <nav id="a11y-mirror" aria-label="House, as text" hidden></nav>
+  <div class="sr-only" aria-live="polite" id="live-polite"></div>
+  <div class="sr-only" aria-live="assertive" id="live-assertive"></div>
+  <div id="captions" hidden aria-hidden="true"></div>
+
+  <div id="compat-message" role="alert" hidden>
+    <div class="overlay-card">
+      <h1>Storyhouse needs WebGL</h1>
+      <p>Your browser could not create a 3D context, so the dollhouse cannot be drawn.
+      Your progress is safe — try a browser with WebGL enabled. A text version of the
+      house is available below for this session.</p>
+      <button id="btn-compat-text" class="menu-btn" type="button">Continue in text mode</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
