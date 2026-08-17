@@ -18,6 +18,8 @@ export class Input {
     this.ctx = null;        // {state, selection, legalSlots, dragMode}
     this._pointer = null;   // active pointer record
     this._drag = null;      // dragging piece record
+    this._trayDrag = null;  // drag started on a DOM tray item
+    this._suppressTrayClick = false;
     this._cursorTargets = [];
     this._cursorIndex = -1;
     this._padPrev = [];
@@ -40,6 +42,26 @@ export class Input {
     }, { passive: false });
     document.addEventListener('keydown', (e) => this._onKeyDown(e));
     this._padTimer = setInterval(() => this._pollGamepad(), 50);
+
+    // The DOM tray sits on top of the 3D tray pieces, so tray drags start on
+    // the tray buttons; they drive the same drag intents as canvas drags.
+    this.tray = document.getElementById('tray');
+    if (this.tray) {
+      this.tray.addEventListener('pointerdown', (e) => this._onTrayPointerDown(e));
+      // Move/up are tracked at document level: pointer capture is requested
+      // once the drag starts, but browsers may drop or refuse it — the drag
+      // must keep working regardless.
+      document.addEventListener('pointermove', (e) => this._onTrayPointerMove(e));
+      document.addEventListener('pointerup', (e) => this._onTrayPointerUp(e));
+      document.addEventListener('pointercancel', () => this._cancelTrayDrag());
+      // A finished drag must not also fire the button's click (select).
+      this.tray.addEventListener('click', (e) => {
+        if (!this._suppressTrayClick) return;
+        this._suppressTrayClick = false;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }, true);
+    }
   }
 
   setContext(ctx) {
@@ -124,6 +146,57 @@ export class Input {
     if (this._drag?.started) this.h.onDragEnd?.(this._drag.key, null);
     this._pointer = null;
     this._drag = null;
+  }
+
+  // ----------------------------------------------------- tray (DOM) drags
+  _onTrayPointerDown(e) {
+    this._suppressTrayClick = false;
+    if (!this.enabled || this.locked || !this.ctx || this._trayDrag) return;
+    if (!this._dragAllowed()) return;
+    const item = e.target.closest?.('.tray-item');
+    const key = item?.dataset.key;
+    if (!key || !this.ctx.state?.tray.includes(key)) return;
+    this._trayDrag = { id: e.pointerId, key, x0: e.clientX, y0: e.clientY, started: false };
+  }
+
+  _onTrayPointerMove(e) {
+    const d = this._trayDrag;
+    if (!d || e.pointerId !== d.id) return;
+    if (d.started && e.buttons === 0) { this._cancelTrayDrag(); return; } // missed pointerup
+    if (!d.started) {
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) <= DRAG_MIN_DIST) return;
+      d.started = true;
+      this._suppressTrayClick = true; // a completed drag is not a click
+      this.h.onDragStart?.(d.key);
+      // Keeps events flowing if the pointer leaves the window; not every
+      // browser honors capture mid-gesture and loss is harmless here, so
+      // delivery never depends on it (moves/ups are tracked on document).
+      try { this.tray.setPointerCapture(e.pointerId); } catch {}
+    }
+    this.h.onDragHover?.(d.key, this._slotAt(e.clientX, e.clientY));
+  }
+
+  _onTrayPointerUp(e) {
+    const d = this._trayDrag;
+    if (!d || e.pointerId !== d.id) return;
+    this._trayDrag = null;
+    if (!d.started) return; // plain tap — the button's click handler selects
+    this.h.onDragEnd?.(d.key, this._slotAt(e.clientX, e.clientY));
+  }
+
+  _cancelTrayDrag() {
+    if (this._trayDrag?.started) {
+      this._suppressTrayClick = true;
+      this.h.onDragEnd?.(this._trayDrag.key, null);
+    }
+    this._trayDrag = null;
+  }
+
+  _slotAt(clientX, clientY) {
+    const hit = this.stage.pick(clientX, clientY);
+    if (hit?.kind === 'slot') return { room: hit.room, slot: hit.slot };
+    if (hit?.kind === 'piece') return this._pieceSlot(hit.key); // occupied → engine explains
+    return null;
   }
 
   _pieceSlot(key) {

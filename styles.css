@@ -179,7 +179,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: grid; place-items: center; gap: 0;
   min-width: 52px; min-height: 52px; border-radius: 12px;
   background: var(--paper-3); border: 2px solid var(--line); padding: 4px 8px;
-  font-size: 0.78em;
+  font-size: 0.78em; touch-action: none;
 }
 .tray-item .tray-icon { font-size: 1.7em; line-height: 1.1; }
 .tray-item[aria-pressed="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 20%, var(--paper-3)); }
