@@ -204,11 +204,12 @@ class App {
       onWipe: () => this.confirmWipe(),
       onTextMode: () => { this._textModeOn = true; this.ui.setMirrorVisible(true); this.ui.toast('Text mode: the whole house is playable from the panel and tray.'); },
       onToggleMirror: () => { this._textModeOn = !this._textModeOn; this.ui.setMirrorVisible(this._textModeOn); },
+      onSound: (name) => this.audio.sfx(name),
     };
   }
 
   goto(where) {
-    this.audio.sfx('open');
+    this.audio.sfx(where === 'title' ? 'back' : 'open');
     if (where === 'title') {
       // Settings/help opened from the pause overlay return to the paused game.
       if (this._fromPause && this.session && this.state === 'paused') {
@@ -285,7 +286,7 @@ class App {
     } else if (mode === 'learn') {
       const nextLesson = C.LESSONS.find(l => !this.progress.lessons[l.id]) || C.LESSONS[0];
       const sel = select(C.LESSONS.map(l => [l.id, `${l.title}${this.progress.lessons[l.id] ? ' ✓' : ''}`]), nextLesson.id);
-      sel.addEventListener('change', () => { this.setup.lessonId = sel.value; });
+      sel.addEventListener('change', () => { this.setup.lessonId = sel.value; this.audio.sfx('tab'); });
       fields.appendChild(mk('Lesson', sel));
       this.setup = { mode, lessonId: nextLesson.id };
       this.ui.setupScreen({
@@ -302,8 +303,8 @@ class App {
       seedInput.type = 'text'; seedInput.inputMode = 'numeric';
       seedInput.value = String(Math.floor(Math.random() * 899999) + 100000);
       seedInput.setAttribute('aria-label', 'Seed');
-      diff.addEventListener('change', () => { this.setup.difficulty = diff.value; this._updateSetupFacts(); });
-      theme.addEventListener('change', () => { this.setup.theme = theme.value; });
+      diff.addEventListener('change', () => { this.setup.difficulty = diff.value; this.audio.sfx('tab'); this._updateSetupFacts(); });
+      theme.addEventListener('change', () => { this.setup.theme = theme.value; this.audio.sfx('tab'); });
       seedInput.addEventListener('change', () => { this.setup.seed = seedInput.value.replace(/\D/g, '') || '1'; });
       fields.append(mk('Difficulty', diff), mk('Theme', theme), mk('Seed (inspectable)', seedInput));
       this.setup = { mode, difficulty: 'cozy', theme: this._theme.id, seed: seedInput.value };
@@ -330,7 +331,7 @@ class App {
           startLabel: 'Take the challenge', fields,
         });
       };
-      sel.addEventListener('change', update);
+      sel.addEventListener('change', () => { this.audio.sfx('tab'); update(); });
       this.setup = { mode, challengeId: sel.value };
       fields.appendChild(mk('Challenge', sel));
       update();
@@ -543,6 +544,7 @@ class App {
     this.session.pauseClock(); // the clock starts when the countdown ends, at 'active'
     this.selection = null;
     this.lesson = null;
+    this._clockWarned = false;
     if (setup.mode === 'learn') {
       const def = C.LESSONS.find(l => l.id === (setup.lessonId || content.contentId));
       if (def) this.lesson = { def, stepIndex: 0 };
@@ -631,12 +633,13 @@ class App {
     this.session.pauseClock();
     this._transition('paused', reason);
     this.input.enabled = false;
-    if (!silent) this.ui.showPause(true);
+    if (!silent) { this.ui.showPause(true); this.audio.sfx('pause'); }
     this._saveSnapshot();
   }
   resumeGame(reason) {
     if (this.state !== 'paused') return;
     this.ui.showPause(false);
+    this.audio.sfx('resume');
     this.session.resumeClock();
     this.input.enabled = true;
     this._awayToastShown = false;
@@ -671,6 +674,7 @@ class App {
       onDragEnd: (key, slot) => { if (slot) this._placeSelected(slot); else this.stage.setHoverTarget(null); },
       onHover: () => {},
       onCursorMove: () => this.audio.sfx('cursor'),
+      onRoomCycle: () => this.audio.sfx('room-enter'),
       onUndo: () => this.undo(),
       onHint: () => this.hint(),
       onCancel: () => this.setSelection(null),
@@ -768,6 +772,8 @@ class App {
     const check = R.validateCommand(st, cmd);
     this.stage.setHoverTarget(slot, key, check.ok);
     this._hoverInvalid = check.ok ? null : check.reason;
+    const now = performance.now();
+    if (now - (this._dragSnd || 0) > 180) { this._dragSnd = now; this.audio.sfx('drag'); }
   }
 
   _invalidAt(reason, slot) {
@@ -862,7 +868,7 @@ class App {
           this._saveSettingsQuiet();
           this.ui.toast(`Lesson complete: ${this.lesson.def.title} ✓`, 'good');
         } else {
-          this.audio.sfx('hint');
+          this.audio.sfx('tutorial');
           this.ui.live(`Lesson step ${this.lesson.stepIndex + 1}: ${this.lesson.def.steps[this.lesson.stepIndex].text}`);
         }
         this.platform.saveProgress(this.progress);
@@ -993,6 +999,7 @@ class App {
       const left = Math.max(0, st.timeLimitMs - this.session.elapsedMs());
       clockText = `⏱ ${Math.ceil(left / 1000)}s`;
       clockWarn = left < 15000;
+      if (clockWarn && !this._clockWarned) { this._clockWarned = true; this.audio.sfx('timer-warn'); }
     } else {
       clockText = `⏱ ${Math.floor(this.session.elapsedMs() / 1000)}s`;
     }
@@ -1058,7 +1065,9 @@ class App {
     // Progression updates.
     const p = this.progress;
     const today = this.platform.utcToday();
-    if (!p.daysPlayed.includes(today)) p.daysPlayed.push(today);
+    const firstPlayToday = !p.daysPlayed.includes(today);
+    const prevBest = p.bestScores[st.contentId] || 0;
+    if (firstPlayToday) p.daysPlayed.push(today);
     for (const b of st.beats) if (!p.beatsSeen.includes(b.t)) p.beatsSeen.push(b.t);
     for (const c of st.cardDefs) {
       const key = `${st.contentId}/${c.id}`;
@@ -1115,7 +1124,10 @@ class App {
         mode: this.mode, contentId: st.contentId, seed: st.seed,
         ruleset: R.RULESET_VERSION, contentVersion: C.CONTENT_VERSION,
         sessionId: this.session.sessionId,
-        commands: this.session.commands.filter(c => c.accepted).map(c => c.cmd),
+        // Full ordered log: rejected commands are not inert (they increment
+        // stats.invalid) and undo entries drive the server's snapshot stack,
+        // so filtering here would guarantee a hash-mismatch on replay.
+        commands: this.session.commands.map(c => c.cmd),
         clientHash: R.hashState(st),
         assists: { undo: false, timingAssist: false },
         settings: { difficulty: this.mode === 'practice' ? this.setup?.difficulty : undefined },
@@ -1166,6 +1178,17 @@ class App {
       summary: `${score.beats} moments, ${score.cardsDone} of ${score.cardsTotal} cards.`,
     });
     this.audio.sfx('finish');
+    // Results reveal: tally, then one chime per star, then the flourishes.
+    let at = 700;
+    setTimeout(() => this.audio.sfx('tally'), at); at += 500;
+    for (let i = 0; i < score.stars; i++) setTimeout(() => this.audio.sfx('star'), at + i * 420);
+    at += score.stars * 420 + (score.stars ? 300 : 0);
+    newly.forEach((a, i) => setTimeout(() => this.audio.cardSfx(), at + i * 500));
+    at += newly.length * 500;
+    const allCards = score.cardsTotal > 0 && score.cardsDone === score.cardsTotal;
+    if (allCards) setTimeout(() => this.audio.sfx(this.mode === 'journey' ? 'collection-complete' : 'story-complete'), at);
+    else if (prevBest > 0 && score.total > prevBest) setTimeout(() => this.audio.sfx('record'), at);
+    if (firstPlayToday && p.daysPlayed.length >= 2) setTimeout(() => this.audio.sfx('streak'), at + 200);
     this._transition('results', `score ${score.total}`);
   }
 

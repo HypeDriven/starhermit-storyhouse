@@ -2,6 +2,7 @@
 // checksummed progress documents with migrations, and replay envelopes.
 // Shared by the browser platform layer and by Node tests.
 import { hashValue } from './rng.js';
+import { hashState } from './rules.js';
 
 export const SETTINGS_VERSION = 1;
 export const PROGRESS_VERSION = 1;
@@ -94,8 +95,11 @@ export function migrateProgress(raw) {
 
 // ---------------------------------------------------------------------------
 // Replay envelope — everything needed to reproduce and audit a session.
+// Spec §5: schema/build/content versions, seed, initial hash, timestamp
+// offset, ordered commands (accepted AND rejected — rejections mutate
+// stats.invalid), periodic state hashes, and the hashed terminal result.
 // ---------------------------------------------------------------------------
-export function makeReplayEnvelope({ build, contentVersion, ruleset, content, sessionId, commands, hashes, state, score }) {
+export function makeReplayEnvelope({ build, contentVersion, ruleset, content, sessionId, commands, hashes, initialState, state, score, timestampOffset = 0 }) {
   return {
     schema: REPLAY_SCHEMA,
     build, contentVersion, ruleset,
@@ -103,13 +107,13 @@ export function makeReplayEnvelope({ build, contentVersion, ruleset, content, se
     seed: content.seed,
     mode: content.mode,
     sessionId,
-    initialHash: null, // filled by caller if needed
-    timestampOffset: 0,
+    initialHash: initialState ? hashState(initialState) : null,
+    timestampOffset,
     commands,
     hashes,            // periodic state hashes
     result: {
       reason: state.terminalReason,
-      hash: null,
+      hash: hashState(state),
       score,
     },
   };

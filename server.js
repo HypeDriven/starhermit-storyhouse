@@ -22,7 +22,7 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createGame, applyCommand, scoreState, hashState, compareResults, maxScore, RULESET_VERSION } from './src/rules.js';
+import { createGame, applyCommand, validateCommand, scoreState, hashState, compareResults, maxScore, RULESET_VERSION } from './src/rules.js';
 import { CONTENT_VERSION, dailyContent, scoreChaseContent, challengeContent, ACHIEVEMENTS, validateContent } from './src/content.js';
 import { hashValue } from './src/rng.js';
 
@@ -68,7 +68,7 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8',
-  '.woff2': 'font/woff2', '.map': 'application/json',
+  '.woff2': 'font/woff2', '.map': 'application/json', '.opus': 'audio/ogg',
 };
 function send(res, code, body, headers = {}) {
   const isObj = typeof body === 'object' && body !== null && !(body instanceof Buffer);
@@ -141,9 +141,24 @@ function validateScoreSubmission(sub) {
   if (!content) return { error: 'unknown-content', status: 422 };
   if (content.seed !== sub.seed) return { error: 'seed-mismatch', status: 422 };
 
-  const state = createGame(content);
+  // Replay mirrors the client session pipeline exactly: rejected commands are
+  // applied too (they increment stats.invalid, which feeds the state hash and
+  // the tie-break), and undo entries pop a snapshot stack taken before each
+  // accepted mutation — so the full ordered log reproduces the terminal state.
+  let state = createGame(content);
+  const history = [];
   for (const cmd of sub.commands) {
     if (!cmd || typeof cmd !== 'object') return { error: 'bad-command-log', status: 422 };
+    if (cmd.type === 'undo') {
+      if (!content.allowUndo || !history.length) return { error: 'bad-command-log', status: 422 };
+      state = JSON.parse(history.pop());
+      continue;
+    }
+    const check = validateCommand(state, cmd);
+    if (check.ok && content.allowUndo && cmd.type !== 'finish' && cmd.type !== 'timeout') {
+      history.push(JSON.stringify(state));
+      if (history.length > 120) history.shift();
+    }
     applyCommand(state, cmd);
   }
   if (state.status !== 'terminal') return { error: 'session-not-finished', status: 422 };

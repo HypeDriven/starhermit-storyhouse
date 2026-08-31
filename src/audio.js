@@ -1,7 +1,31 @@
-// audio.js — WebAudio buses (music / effects / ambience / voice), original
-// synthesized transients tied to logical events, generative theme music with
-// adaptive stems, quiet ambience beds, and text captions for meaningful audio.
-// No samples, no assets — everything is authored oscillators and noise.
+// audio.js — WebAudio buses (music / effects / ambience / voice), sampled
+// one-shots from sfx/ (see sfx/manifest.md) with synthesized fallbacks tied to
+// logical events, generative theme music with adaptive stems, quiet ambience
+// beds, and text captions for meaningful audio.
+
+// Logical event -> sfx/ sample (manifest names, without extension).
+const SAMPLE_FILES = {
+  click: 'ui-click', hover: 'ui-hover', confirm: 'ui-confirm', back: 'ui-back',
+  invalid: 'ui-error', card: 'ui-success', open: 'ui-modal-open', toggle: 'ui-toggle',
+  pickup: 'item-pickup', place: 'item-place', remove: 'item-pickup',
+  interact: 'interact-play', finish: 'scene-save', tab: 'ui-tab-switch',
+  scroll: 'ui-scroll-tick', slider: 'ui-slider-drag', close: 'ui-panel-close',
+  toast: 'ui-toast', pause: 'ui-pause', resume: 'ui-resume',
+  countdown: 'ui-countdown-tick', 'settings-saved': 'ui-settings-saved',
+  'room-enter': 'room-enter', drag: 'item-drag', 'story-complete': 'story-complete',
+  tutorial: 'tutorial-step', undo: 'undo-action', hint: 'hint-reveal',
+  go: 'challenge-start', 'timer-warn': 'timer-warning', timeout: 'challenge-fail',
+  'collection-complete': 'collection-complete', star: 'star-earn',
+  record: 'new-record', streak: 'streak-keep', tally: 'results-tally',
+};
+// Extra samples layered just ahead of an event's primary sample.
+const SAMPLE_LAYERS = { 'room-enter': ['door-creak'] };
+// Captions for meaningful sampled events (kept in sync with the synth cues).
+const SAMPLE_CAPTIONS = {
+  invalid: 'low knock — that move is not allowed',
+  timeout: 'a descending phrase — time is up',
+  finish: 'a warm music-box phrase — the scene is saved',
+};
 
 export class AudioEngine {
   constructor(hooks = {}) {
@@ -42,7 +66,49 @@ export class AudioEngine {
     this._noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this._noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this._samples = new Map();    // file -> AudioBuffer, or null after a failed load
+    this._sampleLoads = new Map(); // file -> in-flight fetch/decode promise
     return true;
+  }
+
+  // ---------------------------------------------------------------- samples
+  // Lazy fetch+decode+cache of the sfx/ one-shots on first use (only after the
+  // user-gesture unlock in ensure()). While a sample is loading — or if it
+  // failed — the synthesized fallback for that event stays in place.
+  _sampleBuffer(file) {
+    if (!this.ctx) return null;
+    if (this._samples.has(file)) return this._samples.get(file);
+    if (!this._sampleLoads.has(file)) {
+      this._sampleLoads.set(file, (async () => {
+        try {
+          const res = await fetch(`sfx/${file}.opus`);
+          if (!res.ok) throw new Error(`sfx ${res.status}`);
+          this._samples.set(file, await this.ctx.decodeAudioData(await res.arrayBuffer()));
+        } catch {
+          this._samples.set(file, null); // missing/undecodable — synth fallback covers it
+        } finally {
+          this._sampleLoads.delete(file);
+        }
+      })());
+    }
+    return undefined; // still loading
+  }
+
+  /** Play the manifest sample(s) for a logical event. Returns false if none are ready. */
+  _playSample(name, at = 0) {
+    if (!this.ctx || this.muted) return false;
+    const files = [SAMPLE_FILES[name], ...(SAMPLE_LAYERS[name] ?? [])].filter(Boolean);
+    let played = false;
+    files.forEach((file, i) => {
+      const buf = this._sampleBuffer(file);
+      if (!buf) return;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(this.buses.effects);
+      src.start(this.ctx.currentTime + at + i * 0.12);
+      played = true;
+    });
+    return played;
   }
 
   _gain(v) { return Math.pow(Math.max(0, Math.min(100, v)) / 100, 2); }
@@ -101,6 +167,10 @@ export class AudioEngine {
   /** UI + rules event sounds. rng (optional) seeds pitch variants for replays. */
   sfx(name, rng = null) {
     if (!this.ctx || this.muted) return;
+    if (this._playSample(name)) {
+      if (SAMPLE_CAPTIONS[name]) this.caption(SAMPLE_CAPTIONS[name]);
+      return;
+    }
     const v = rng ? 0.94 + rng.next() * 0.12 : 1;
     switch (name) {
       case 'click':   this._blip('effects', 660 * v, { type: 'triangle', d: 0.07, peak: 0.25 }); break;
@@ -135,7 +205,9 @@ export class AudioEngine {
       'bright-idea': [880, 1108], 'snack': [523, 494], 'time-check': [659, 587],
       'playtime': [698, 880], 'heart-to-heart': [523, 622, 784],
     }[beatType] || [523, 659];
-    base.forEach((f, i) => this._blip('effects', f * v, { type: 'sine', d: 0.35, peak: 0.28, at: i * 0.09 }));
+    if (!this._playSample('interact')) {
+      base.forEach((f, i) => this._blip('effects', f * v, { type: 'sine', d: 0.35, peak: 0.28, at: i * 0.09 }));
+    }
     if (sig) [1046, 1318, 1568].forEach((f, i) => this._blip('effects', f, { type: 'sine', d: 0.5, peak: 0.2, at: 0.15 + i * 0.07 }));
     if (hab) this._noise('effects', { f0: 2400, d: 0.3, peak: 0.08, at: 0.1, type: 'highpass' });
     const labels = { sig: 'a golden signature chime', hab: 'a warm homely shimmer' };
@@ -144,6 +216,7 @@ export class AudioEngine {
 
   cardSfx() {
     if (!this.ctx || this.muted) return;
+    if (this._playSample('card')) { this.caption('a discovery card completes'); return; }
     [784, 988, 1175, 1568].forEach((f, i) => this._blip('effects', f, { type: 'triangle', d: 0.4, peak: 0.22, at: i * 0.08 }));
     this.caption('a discovery card completes');
   }

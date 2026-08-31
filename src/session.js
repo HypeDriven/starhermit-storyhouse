@@ -1,7 +1,8 @@
 // session.js — local command pipeline: validated commands only, idempotent
 // by command id, snapshot history for undo, replay envelope with periodic
 // hashes, and an authoritative quantized session clock.
-import { applyCommand, validateCommand, hashState, serializeState, deserializeState, scoreState } from './rules.js';
+import { createGame, applyCommand, validateCommand, hashState, serializeState, deserializeState, scoreState } from './rules.js';
+import { makeReplayEnvelope } from './persist.js';
 
 let SESSION_COUNTER = 0;
 
@@ -92,14 +93,17 @@ export class GameSession {
   score() { return scoreState(this.state); }
 
   replayEnvelope({ build, contentVersion, ruleset }) {
-    return {
-      schema: 1, build, contentVersion, ruleset,
-      contentId: this.content.contentId, seed: this.content.seed, mode: this.content.mode,
-      sessionId: this.sessionId,
-      commands: this.commands.filter(c => c.accepted).map(c => c.cmd),
+    return makeReplayEnvelope({
+      build, contentVersion, ruleset,
+      content: this.content, sessionId: this.sessionId,
+      // Full ordered log — rejected commands mutate stats.invalid and undo
+      // entries drive the replayer's snapshot stack, so filtering here would
+      // make the envelope unable to reproduce the terminal state.
+      commands: this.commands.map(c => c.cmd),
       hashes: this.hashes.slice(),
-      result: { reason: this.state.terminalReason, hash: hashState(this.state), score: this.score() },
-    };
+      initialState: createGame(this.content), // deterministic from the content
+      state: this.state, score: this.score(),
+    });
   }
 
   // ------------------------------------------------------------ snapshots

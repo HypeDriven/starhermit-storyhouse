@@ -345,6 +345,7 @@ export class Input {
       this._cursorIndex = idx;
       this.stage.setCursor(this._cursorTargets[idx].pos);
       this.stage.focusRoom(next.id);
+      this.h.onRoomCycle?.();
       this.h.onCursorMove?.(this._cursorTargets[idx]);
     }
   }

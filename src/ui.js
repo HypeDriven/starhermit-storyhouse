@@ -52,6 +52,7 @@ export class UI {
         this.closeDrawers();
         el.classList.toggle('open', open);
         $(id).setAttribute('aria-expanded', String(open));
+        this.h.onSound?.(open ? 'open' : 'close');
       });
     }
     $('btn-compat-text').addEventListener('click', () => {
@@ -61,9 +62,32 @@ export class UI {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !$('overlay-dialog').hidden) {
         e.stopImmediatePropagation(); // close the dialog without also pausing
+        this.h.onSound?.('close');
         this._closeDialog();
       }
     });
+    // Generic UI feedback for plain buttons/lists; game controls and widgets
+    // with their own semantic sounds are excluded to avoid doubling.
+    let lastHover = 0, lastScroll = 0;
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.dataset.goto !== undefined || b.id.startsWith('drawer-')) return;
+      if (b.closest('#hud, #tray, #dialog-buttons, #context-actions, #a11y-mirror')) return;
+      this.h.onSound?.('click');
+    });
+    document.addEventListener('pointerover', (e) => {
+      if (!e.target.closest('button')) return;
+      const now = performance.now();
+      if (now - lastHover < 90) return;
+      lastHover = now;
+      this.h.onSound?.('hover');
+    });
+    document.addEventListener('scroll', () => {
+      const now = performance.now();
+      if (now - lastScroll < 140) return;
+      lastScroll = now;
+      this.h.onSound?.('scroll');
+    }, true);
   }
 
   closeDrawers() {
@@ -73,6 +97,7 @@ export class UI {
 
   // ------------------------------------------------------------- screens
   showScreen(name) {
+    if (this._screen === 'settings' && name !== 'settings') this.h.onSound?.('settings-saved');
     for (const s of document.querySelectorAll('.screen')) s.hidden = true;
     this._screen = name;
     if (name) {
@@ -113,11 +138,16 @@ export class UI {
       btn.type = 'button';
       btn.className = b.primary ? 'primary-btn' : (b.danger ? 'menu-btn danger' : 'menu-btn');
       btn.textContent = b.label;
-      btn.addEventListener('click', () => { this._closeDialog(); b.action?.(); });
+      btn.addEventListener('click', () => {
+        this.h.onSound?.(b.primary || b.danger ? 'confirm' : 'back');
+        this._closeDialog();
+        b.action?.();
+      });
       box.appendChild(btn);
     }
     $('overlay-dialog').hidden = false;
     box.querySelector('button')?.focus();
+    this.h.onSound?.('open');
   }
   _closeDialog() {
     $('overlay-dialog').hidden = true;
@@ -131,6 +161,7 @@ export class UI {
     $('toast-region').appendChild(el);
     setTimeout(() => el.remove(), 3400);
     this.live(text);
+    if (kind !== 'bad') this.h.onSound?.('toast'); // errors already play ui-error
   }
 
   live(text, assertive = false) {
@@ -462,6 +493,8 @@ export class UI {
       el.parentElement.querySelector('output').textContent = s[key];
       el.oninput = () => {
         el.parentElement.querySelector('output').textContent = el.value;
+        const now = performance.now();
+        if (now - (this._sliderSnd || 0) > 120) { this._sliderSnd = now; this.h.onSound?.('slider'); }
         onChange({ [key]: Number(el.value) });
       };
     };
@@ -472,7 +505,7 @@ export class UI {
     const bindCheck = (id, key) => {
       const el = $(id);
       el.checked = !!s[key];
-      el.onchange = () => onChange({ [key]: el.checked });
+      el.onchange = () => { this.h.onSound?.('toggle'); onChange({ [key]: el.checked }); };
     };
     bindCheck('set-mute', 'mute');
     bindCheck('set-captions', 'captions');
@@ -486,7 +519,7 @@ export class UI {
     const bindSelect = (id, key) => {
       const el = $(id);
       el.value = s[key];
-      el.onchange = () => onChange({ [key]: el.value });
+      el.onchange = () => { this.h.onSound?.('toggle'); onChange({ [key]: el.value }); };
     };
     bindSelect('set-quality', 'quality');
     bindSelect('set-palette', 'palette');
