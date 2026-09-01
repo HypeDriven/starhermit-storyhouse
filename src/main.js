@@ -7,7 +7,7 @@ import { Stage } from './render.js';
 import { UI } from './ui.js';
 import { Input } from './ui-input.js';
 import { AudioEngine } from './audio.js';
-import { Platform, BUILD } from './platform.js';
+import { Platform, BUILD } from './platform.js?v=production-qa-1';
 import { GameSession } from './session.js';
 import { defaultSettings } from './persist.js';
 import * as R from './rules.js';

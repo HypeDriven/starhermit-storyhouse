@@ -26,6 +26,13 @@ export class Platform {
   }
 
   async init() {
+    // UUID production subdomains serve a static build; their shared platform
+    // API is not this game's optional server contract.
+    if (/^[0-9a-f-]{36}\.starhermit\.com$/i.test(location.hostname)) {
+      this.hosted = false;
+      this._timeOffset = 0;
+      return this;
+    }
     // Launch token: query param or host-injected global. Scope is read from
     // the token payload when decodable; the slug is never hard-coded.
     const q = new URLSearchParams(location.search);
