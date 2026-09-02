@@ -345,12 +345,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
     position: absolute; inset-block-start: calc(42% + 56px); inset-inline-start: calc(8px + var(--sal));
     width: min(320px, 86vw); max-height: 48vh; z-index: 15;
     transform: translateX(-115%);
-    transition: transform 0.25s ease-out;
+    visibility: hidden;
+    transition: transform 0.25s ease-out, visibility 0s 0.25s;
   }
   #rail-right { inset-inline-start: auto; inset-inline-end: calc(8px + var(--sas)); transform: translateX(115%); }
   html[dir="rtl"] #rail-left { transform: translateX(115%); }
   html[dir="rtl"] #rail-right { transform: translateX(-115%); }
-  #rail-left.open, #rail-right.open { transform: none; }
+  #rail-left.open, #rail-right.open {
+    transform: none; visibility: visible;
+    transition: transform 0.25s ease-out, visibility 0s;
+  }
   .drawer-toggle {
     display: block; position: absolute; z-index: 14;
     inset-block-start: 42%; inset-inline-start: calc(8px + var(--sal));
