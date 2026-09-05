@@ -15,7 +15,7 @@ evidence.
 | --- | --- |
 | `npm test` | 58/58 pass (`node --test tests/*.test.js` — content, drag, fuzz, golden, persist, replay, rules) |
 | `node --check` on all modules | clean (11 `src/*.js` + 4 `src/render/*.js` + `server.js`) |
-| `tests/e2e.mjs` (headless Chrome) | not present — substituted a CDP boot check (see *Not tested*): page loads, title "Storyhouse", canvas present, **no console errors, no page exceptions, no failed requests** |
+| `tests/e2e.mjs` (headless Chrome via playwright-core) | present and passing — desktop + mobile pass, **no page errors** (`E2E PASS — storyhouse, desktop + mobile, no page errors`) |
 
 ## Confirmed defects
 
@@ -162,9 +162,10 @@ rejected command and an undo replays to the terminal hash, and `initialHash` mat
 
 ## Not tested
 
-- **`tests/e2e.mjs`**: not shipped. Substituted a CDP boot check against `PORT=39606 node
-  server.js`; it verifies a clean boot (title, canvas, all mode cards and overlay buttons present,
-  no errors) but does not play a scene to completion in the browser.
+- **`tests/e2e.mjs`**: now shipped (`npm run test:e2e`); it drives the real visible UI in headless
+  Chrome via playwright-core on desktop + mobile viewports, playing a Journey stage to completion
+  (mirror, placements, interact, undo/hint, pause/resume, save scene + results) and asserting no
+  page errors. It passes.
 - **Rendering**: `src/render.js` and `src/render/{house,pieces,camera,vfx}.js` (~1400 lines) were
   not reviewed beyond confirming a clean WebGL boot.
 - **Hosted platform paths**: `src/platform.js` guest-token flow was exercised through the server's
