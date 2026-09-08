@@ -186,3 +186,47 @@ rejected command and an undo replays to the terminal hash, and `initialHash` mat
 Reproducing the findings above required running `storyhouse/server.js` locally, which created an
 untracked `data/` directory. It holds the evidence entries used here (guest profiles and the two probe scores from the defect-1 test), plus one guest and two probe scores from the 2026-08-26 fix verification. **Delete
 `data/` before treating any of it as real data** — this QA pass had no permission to remove it.
+
+---
+
+## Review pass 2026-09-07 (Claude Opus 5)
+
+Both defects above remain fixed. Checks: `npm test` 61/61, `npm run test:e2e` PASS
+(desktop + mobile, no page errors), `node --check` clean on all modules, and a live
+`server.js` smoke (guest → daily submission containing a rejected action → 200,
+leaderboard → 1 entry, malformed replay → 422, `/data/` → 403).
+
+Fixed this pass:
+
+1. **Settings/How-to-play opened from the pause overlay abandoned the game.**
+   `openSettings`/`openHelp` transition the machine to `mode-select`, so the
+   "return to the paused game" branch in `goto('title')` (which required
+   `state === 'paused'`) never ran and Back fell through to `leaveToTitle()`.
+   `goto` now keys off the live session and restores the `paused` phase.
+2. **Restart after "Continue your paused story" threw.** `resumeSnapshot` set
+   `setup = { mode }` with no index/seed, so `_contentFor` called
+   `journeyStage(undefined)` → `TypeError: Cannot read properties of undefined`.
+   Setup is now rebuilt from the restored content (`_setupForContent`), and
+   `journeyStage` returns `null` for any non-integer index.
+3. **The HUD pause chip never changed.** Backgrounding the tab pauses silently,
+   leaving a chip that still read "⏸ Pause" as the only way back in. It now
+   toggles to "▶ Resume" with `aria-pressed`.
+4. **Keyboard focus was thrown to `<body>` after every action** — the tray, the
+   context actions and the whole text mirror are rebuilt on each sync. Rebuilds
+   now restore focus by `data-focus-key`.
+5. **Fractional/string slot indices were accepted** by `place`/`move`, writing a
+   property the room array never reads back and stranding the piece; now
+   `slot-missing`.
+6. **A WebGL context restore re-registered its listeners and ResizeObserver**
+   (`init()` runs again), doubling them on every restore.
+7. **Progress documents with an intact checksum but an older version** were
+   returned unmigrated (missing containers); `loadProgress` now migrates them.
+   `restoreSnapshot` migrates the rules state and fails closed on junk.
+8. **QA artifacts were committed**: `data/guests.json` and `data/scores.json`
+   (guest tokens + probe scores) are untracked and `data/` is now gitignored.
+9. `LICENSE.md` (PolyForm Noncommercial 1.0.0) added per the root instructions.
+
+Not changed: the left-handed setting flips `<html dir>` to `rtl` to mirror the
+layout, which also bidi-reorders leading symbols in HUD chips ("★ 12" reads
+"12 ★"). That is the existing mirroring design, not a regression, and undoing it
+needs a CSS rework rather than a review-pass edit.

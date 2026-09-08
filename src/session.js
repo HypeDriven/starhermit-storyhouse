@@ -120,10 +120,16 @@ export class GameSession {
     });
   }
   static restoreSnapshot(json) {
-    const doc = JSON.parse(json);
+    let doc = null;
+    try { doc = JSON.parse(json); } catch { return null; }
     if (!doc || doc.v !== 1) return null;
+    if (!doc.content || !doc.state) return null;
+    if (doc.commands != null && (!Array.isArray(doc.commands) || doc.commands.some(c => !c || typeof c !== 'object'))) return null;
+    if (doc.hashes != null && !Array.isArray(doc.hashes)) return null;
     const s = new GameSession(doc.content, { sessionId: doc.sessionId });
-    s.state = doc.state;
+    // The envelope version and the rules-state version move independently:
+    // migrate the state so a snapshot written by an older build still loads.
+    try { s.state = deserializeState(doc.state); } catch { return null; }
     s.commands = doc.commands || [];
     s.hashes = doc.hashes || [];
     s._cmdCounter = s.commands.length;

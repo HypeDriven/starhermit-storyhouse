@@ -8,6 +8,9 @@
     "test": "node --test tests/*.test.js",
     "test:e2e": "node tests/e2e.mjs"
   },
-  "license": "UNLICENSED",
-  "private": true
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  }
 }

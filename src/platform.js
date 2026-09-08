@@ -2,7 +2,7 @@
 // consent, presence. Works hosted (same-origin /api) or fully local/offline;
 // account state survives either way. Tokens live in memory only — never in
 // local storage.
-import { defaultSettings, migrateSettings, defaultProgress, migrateProgress, sealProgress, verifyProgress } from './persist.js';
+import { defaultSettings, migrateSettings, defaultProgress, migrateProgress, sealProgress, verifyProgress, PROGRESS_VERSION } from './persist.js';
 
 const LS = {
   settings: 'storyhouse.settings.v1',
@@ -144,8 +144,11 @@ export class Platform {
   loadProgress() {
     try {
       const raw = JSON.parse(localStorage.getItem(LS.progress) || 'null');
-      if (raw && !verifyProgress(raw)) return migrateProgress(raw); // repair via migration
-      return raw ? raw : defaultProgress();
+      if (!raw) return defaultProgress();
+      // Repair a tampered/partial document, and upgrade an older one — an
+      // intact v0 doc still passes its checksum but lacks whole containers.
+      if (!verifyProgress(raw) || raw.v !== PROGRESS_VERSION) return migrateProgress(raw);
+      return raw;
     } catch { return defaultProgress(); }
   }
   saveProgress(p) {
@@ -168,7 +171,8 @@ export class Platform {
     }
   }
   async loadCloudSave() {
-    const r = await this.hosted && this._token ? await this._api('/api/v1/save') : null;
+    if (!this.hosted || !this._token) return null;
+    const r = await this._api('/api/v1/save');
     return r?.doc || null;
   }
 

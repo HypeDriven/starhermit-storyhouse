@@ -89,3 +89,17 @@ test('different seeds diverge (sanity that hashing sees real differences)', () =
   const b = randomSession(content, 2);
   assert.notEqual(a.hash, b.hash);
 });
+
+test('session snapshots round-trip, and unreadable ones fail closed', async () => {
+  const { GameSession } = await import('../src/session.js');
+  const content = practiceContent('cozy', 11, 'meadow');
+  const s = new GameSession(content).start(R.createGame(content));
+  const item = content.tray.find(k => content.items[k].kind === 'character');
+  s.submit({ type: 'place', item, room: content.layout.rooms[0].id, slot: 0 });
+  const restored = GameSession.restoreSnapshot(s.serializeSnapshot());
+  assert.equal(R.hashState(restored.state), R.hashState(s.state));
+  assert.equal(restored.commands.length, s.commands.length);
+  for (const bad of ['not json', '{}', JSON.stringify({ v: 1 }), JSON.stringify({ v: 1, content, state: { v: 99 } })]) {
+    assert.equal(GameSession.restoreSnapshot(bad), null, `must reject ${bad.slice(0, 24)}`);
+  }
+});

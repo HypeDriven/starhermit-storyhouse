@@ -84,7 +84,10 @@ export class Stage {
 
     this.vfx = new VfxPool(this.scene, 3000);
     this._buildMarkers();
-    this._bindContextLoss();
+    // init() runs again after a context restore: the canvas keeps its listeners
+    // and observer from the first pass, so neither may be registered twice.
+    if (!this._contextLossBound) { this._bindContextLoss(); this._contextLossBound = true; }
+    this._resizeObserver?.disconnect();
     this._resizeObserver = new ResizeObserver(() => this._resize());
     this._resizeObserver.observe(this.canvas.parentElement || this.canvas);
     this._resize();

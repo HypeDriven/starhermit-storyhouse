@@ -208,6 +208,12 @@ export function reasonText(code) { return REASONS[code] || 'That action is not a
 
 function fail(reason) { return { ok: false, reason }; }
 
+// Slots are array indices: a fractional or string index would write a property
+// the room array never reads back, silently stranding the piece.
+function isSlotIndex(slot, room) {
+  return Number.isInteger(slot) && slot >= 0 && slot < room.slots.length;
+}
+
 export function validateCommand(state, cmd) {
   if (!cmd || typeof cmd !== 'object' || !VALID_CMDS.has(cmd.type)) return fail('unknown-action');
   if (state.status !== 'active') return fail('game-over');
@@ -226,7 +232,7 @@ export function validateCommand(state, cmd) {
   if (cmd.type === 'place') {
     const room = roomById(state, cmd.room);
     if (!room) return fail('room-missing');
-    if (!(cmd.slot >= 0 && cmd.slot < room.slots.length)) return fail('slot-missing');
+    if (!isSlotIndex(cmd.slot, room)) return fail('slot-missing');
     if (!state.tray.includes(cmd.item)) return fail('item-not-in-tray');
     if (room.slots[cmd.slot] !== null) return fail('slot-occupied');
     return { ok: true };
@@ -234,7 +240,7 @@ export function validateCommand(state, cmd) {
   if (cmd.type === 'move') {
     const room = roomById(state, cmd.room);
     if (!room) return fail('room-missing');
-    if (!(cmd.slot >= 0 && cmd.slot < room.slots.length)) return fail('slot-missing');
+    if (!isSlotIndex(cmd.slot, room)) return fail('slot-missing');
     const cur = itemSlot(state, cmd.item);
     if (!cur) return fail('item-not-placed');
     if (cur.room.id === cmd.room && cur.slot === cmd.slot) return fail('same-slot');

@@ -90,6 +90,17 @@ export class UI {
     }, true);
   }
 
+  /** Rebuild a live list without throwing keyboard focus back to the body:
+   *  the element carrying the same data-focus-key regains focus afterwards. */
+  _rebuildKeepingFocus(container, rebuild) {
+    const active = document.activeElement;
+    const key = active && container.contains(active) ? active.dataset.focusKey : null;
+    rebuild();
+    if (!key) return;
+    const esc = window.CSS?.escape ? CSS.escape(key) : key.replace(/["\\]/g, '\\$&');
+    container.querySelector(`[data-focus-key="${esc}"]`)?.focus({ preventScroll: true });
+  }
+
   closeDrawers() {
     for (const id of ['rail-left', 'rail-right']) $(id).classList.remove('open');
     for (const id of ['drawer-left-toggle', 'drawer-right-toggle']) $(id).setAttribute('aria-expanded', 'false');
@@ -120,6 +131,20 @@ export class UI {
     $('overlay-pause').hidden = !on;
     if (on) { this._pausePrevFocus = document.activeElement; $('btn-resume').focus(); }
     else this._pausePrevFocus?.focus?.();
+  }
+
+  /** The HUD pause chip is a toggle: say which way it goes. Backgrounding the
+   *  tab pauses silently, so this is the only visible way back in. */
+  setPaused(on) {
+    const btn = $('btn-pause');
+    btn.setAttribute('aria-pressed', String(!!on));
+    btn.title = on ? 'Resume (Esc or P)' : 'Pause (Esc or P)';
+    btn.textContent = '';
+    btn.append(on ? '▶ ' : '⏸ ');
+    const label = document.createElement('span');
+    label.className = 'btn-label';
+    label.textContent = on ? 'Resume' : 'Pause';
+    btn.appendChild(label);
   }
 
   countdown(text) {
@@ -230,15 +255,18 @@ export class UI {
     // Context actions
     $('selection-desc').textContent = v.selectionDesc;
     const ctx = $('context-actions');
-    ctx.textContent = '';
-    for (const a of v.contextActions) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'menu-btn small';
-      btn.textContent = a.label;
-      btn.addEventListener('click', () => this.h.onContextAction(a));
-      ctx.appendChild(btn);
-    }
+    this._rebuildKeepingFocus(ctx, () => {
+      ctx.textContent = '';
+      for (const a of v.contextActions) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'menu-btn small';
+        btn.textContent = a.label;
+        btn.dataset.focusKey = `ctx:${a.kind}:${a.item ?? `${a.a}+${a.b}`}`;
+        btn.addEventListener('click', () => this.h.onContextAction(a));
+        ctx.appendChild(btn);
+      }
+    });
 
     // Lesson box
     $('lesson-box').hidden = !v.lesson;
@@ -251,6 +279,9 @@ export class UI {
 
   setTray(items, selectedKey) {
     const tray = $('tray');
+    this._rebuildKeepingFocus(tray, () => this._fillTray(tray, items, selectedKey));
+  }
+  _fillTray(tray, items, selectedKey) {
     tray.textContent = '';
     for (const it of items) {
       const btn = document.createElement('button');
@@ -258,6 +289,7 @@ export class UI {
       btn.className = 'tray-item';
       btn.setAttribute('aria-pressed', String(it.key === selectedKey));
       btn.dataset.key = it.key;
+      btn.dataset.focusKey = `tray:${it.key}`;
       const icon = document.createElement('span');
       icon.className = 'tray-icon';
       icon.textContent = PIECE_ICONS[it.key] || '◼';
@@ -570,6 +602,9 @@ export class UI {
   // -------------------------------------------------------- a11y mirror
   mirror(state, selectionKey, onAction) {
     const nav = $('a11y-mirror');
+    this._rebuildKeepingFocus(nav, () => this._fillMirror(nav, state, selectionKey, onAction));
+  }
+  _fillMirror(nav, state, selectionKey, onAction) {
     nav.textContent = '';
     const h = document.createElement('h3');
     h.textContent = 'The house, as text';
@@ -589,6 +624,7 @@ export class UI {
           ? `Place ${state.items[selectionKey].name} here (spot ${i + 1})`
           : `${itemName} — spot ${i + 1}`;
         btn.setAttribute('aria-current', String(itemKey === selectionKey));
+        btn.dataset.focusKey = `slot:${room.id}:${i}`;
         btn.addEventListener('click', () => onAction({ room: room.id, slot: i, item: itemKey }));
         li.appendChild(btn);
         ul.appendChild(li);
@@ -604,6 +640,7 @@ export class UI {
       btn.type = 'button';
       btn.textContent = `Select ${state.items[key].name}`;
       btn.setAttribute('aria-current', String(key === selectionKey));
+      btn.dataset.focusKey = `mirror-tray:${key}`;
       btn.addEventListener('click', () => onAction({ tray: key }));
       li.appendChild(btn);
       ul.appendChild(li);

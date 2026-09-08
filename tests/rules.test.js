@@ -290,3 +290,16 @@ test('learn lessons are playable with the same legal-action API', () => {
   assert.equal(st.cards['learn-2-c1'], 1);
   assert.equal(st.status, 'terminal');
 });
+
+test('slot indices must be real array indices', () => {
+  const st = simpleGame();
+  for (const slot of [1.5, '0', null, undefined, -1, 3, NaN]) {
+    const v = R.validateCommand(st, { type: 'place', item: 'pip', room: 'kitchen', slot });
+    assert.equal(v.ok, false, `place slot ${String(slot)} must be rejected`);
+    assert.equal(v.reason, 'slot-missing');
+  }
+  assert.equal(R.validateCommand(st, { type: 'place', item: 'pip', room: 'kitchen', slot: 0 }).ok, true);
+  R.applyCommand(st, { type: 'place', item: 'pip', room: 'kitchen', slot: 0 });
+  const v = R.validateCommand(st, { type: 'move', item: 'pip', room: 'library', slot: 1.5 });
+  assert.equal(v.reason, 'slot-missing');
+});

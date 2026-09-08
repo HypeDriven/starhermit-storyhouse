@@ -306,7 +306,9 @@ async function handleApi(req, res, url) {
 // ---------------------------------------------------------------------------
 const BLOCKED = new Set(['server.js', 'package.json', 'package-lock.json']);
 async function serveStatic(req, res, url) {
-  let p = decodeURIComponent(url.pathname);
+  let p;
+  try { p = decodeURIComponent(url.pathname); }
+  catch { return fail(res, 400, 'bad-path'); }
   if (p === '/') p = '/index.html';
   const rel = path.normalize(p).replace(/^([/\\])+/, '');
   if (rel.startsWith('..') || rel.includes('/../') || rel.startsWith('data/') || rel.startsWith('.') || rel.split('/').some(s => s.startsWith('.'))) {
@@ -314,7 +316,7 @@ async function serveStatic(req, res, url) {
   }
   if (BLOCKED.has(rel)) return fail(res, 403, 'forbidden');
   const file = path.join(__dirname, rel);
-  if (!file.startsWith(__dirname)) return fail(res, 403, 'forbidden');
+  if (!file.startsWith(__dirname + path.sep)) return fail(res, 403, 'forbidden');
   if (!existsSync(file)) return fail(res, 404, 'not-found');
   const ext = path.extname(file).toLowerCase();
   const immutable = rel.startsWith('vendor/');

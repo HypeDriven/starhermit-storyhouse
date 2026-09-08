@@ -111,3 +111,11 @@ test('every beat kind is reachable through the prop registry', () => {
     assert.ok(C.PROPS[prop], `signature prop ${prop}`);
   }
 });
+
+test('journeyStage rejects indices that are not whole stage numbers', () => {
+  for (const i of [undefined, null, NaN, 1.5, -1, 45, '3']) {
+    assert.equal(C.journeyStage(i), null, `index ${String(i)} must have no stage`);
+  }
+  assert.equal(C.journeyStage(0).contentId, 'journey-01');
+  assert.equal(C.journeyStage(44).contentId, 'journey-45');
+});

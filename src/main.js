@@ -186,8 +186,8 @@ class App {
       onPlay: () => this.quickPlay(),
       onResumeSnapshot: () => this.resumeSnapshot(),
       onPauseToggle: () => this.state === 'active' ? this.pauseGame('button') : this.resumeGame('button'),
-      onOpenSettings: () => { this.ui.showPause(false); this._fromPause = true; this.openSettings(); },
-      onOpenHelp: () => { this.ui.showPause(false); this._fromPause = true; this.openHelp(); },
+      onOpenSettings: () => { this._fromPause = this.state === 'paused'; this.ui.showPause(false); this.openSettings(); },
+      onOpenHelp: () => { this._fromPause = this.state === 'paused'; this.ui.showPause(false); this.openHelp(); },
       onRestart: () => this.confirmRestart(),
       onLeave: () => this.leaveToTitle(),
       onHint: () => this.hint(),
@@ -212,12 +212,16 @@ class App {
     this.audio.sfx(where === 'title' ? 'back' : 'open');
     if (where === 'title') {
       // Settings/help opened from the pause overlay return to the paused game.
-      if (this._fromPause && this.session && this.state === 'paused') {
+      // Opening them moved the machine to 'mode-select', so the paused phase is
+      // restored here — otherwise Resume would find no paused game to resume.
+      if (this._fromPause && this.session?.state.status === 'active') {
         this._fromPause = false;
         this.ui.showScreen(null);
+        this._transition('paused', 'closed a menu opened from pause');
         this.ui.showPause(true);
         return;
       }
+      this._fromPause = false;
       this.leaveToTitle();
       return;
     }
@@ -520,6 +524,22 @@ class App {
     return null;
   }
 
+  /** Inverse of _contentFor: the setup that regenerates this exact content. */
+  _setupForContent(content) {
+    const mode = content.mode;
+    const id = content.contentId || '';
+    if (mode === 'journey') return { mode, index: Math.max(0, Number(id.replace(/^journey-/, '')) - 1) };
+    if (mode === 'daily') return { mode, date: id.replace(/^daily-/, '') };
+    if (mode === 'learn') return { mode, lessonId: id };
+    if (mode === 'challenge') return { mode, challengeId: id.replace(/^challenge-/, '') };
+    if (mode === 'score') return { mode, seed: id.replace(/^score-/, '') };
+    if (mode === 'practice') {
+      const m = /^practice-([^-]+)-(.+)$/.exec(id);
+      return { mode, difficulty: m?.[1] || 'cozy', seed: m?.[2] || '1', theme: content.theme };
+    }
+    return { mode };
+  }
+
   startFromSetup() {
     this._startSession(this.setup);
   }
@@ -529,6 +549,7 @@ class App {
     if (!content) { this.ui.toast('That content is unavailable.', 'bad'); return; }
     this.mode = setup.mode;
     this.setup = { mode: setup.mode, ...setup };
+    clearTimeout(this._cdTimer); // a restart mid-countdown must not run two chains
     this._transition('preparing', `start ${setup.mode}`);
 
     this._theme = C.THEMES[content.theme] || C.THEMES.meadow;
@@ -553,6 +574,7 @@ class App {
     this.stage.startSession({ content, theme: this._theme, state: this.session.state });
     this.ui.showScreen(null);
     this.ui.setHudVisible(true);
+    this.ui.setPaused(false);
     this.ui.closeDrawers();
     this.ui.setMirrorVisible(!!this._textModeOn);
     this.platform.activityStart();
@@ -622,8 +644,10 @@ class App {
     const restored = GameSession.restoreSnapshot(json);
     if (!restored) { this.ui.toast('That saved story could not be read.', 'bad'); return; }
     this.mode = restored.content.mode;
-    this.setup = { mode: this.mode };
-    this._startSession({ mode: this.mode }, restored);
+    // Rebuild the setup from the restored content, so Restart and Next can
+    // regenerate the same stage instead of asking for an undefined one.
+    this.setup = this._setupForContent(restored.content);
+    this._startSession(this.setup, restored);
     const ago = Math.round((Date.now() - (restored._savedAt || Date.now())) / 60000);
     this.ui.toast(`Welcome back — restored your paused story${ago >= 1 ? ` from about ${ago} min ago` : ''}.`);
   }
@@ -633,12 +657,14 @@ class App {
     this.session.pauseClock();
     this._transition('paused', reason);
     this.input.enabled = false;
+    this.ui.setPaused(true);
     if (!silent) { this.ui.showPause(true); this.audio.sfx('pause'); }
     this._saveSnapshot();
   }
   resumeGame(reason) {
     if (this.state !== 'paused') return;
     this.ui.showPause(false);
+    this.ui.setPaused(false);
     this.audio.sfx('resume');
     this.session.resumeClock();
     this.input.enabled = true;

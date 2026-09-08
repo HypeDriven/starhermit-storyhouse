@@ -474,7 +474,7 @@ const CHAPTER_CARD_KINDS = [
 export const CHAPTERS_PUB = CHAPTERS;
 
 export function journeyStage(index) {
-  if (index < 0 || index >= 45) return null;
+  if (!Number.isInteger(index) || index < 0 || index >= 45) return null;
   const chapter = Math.floor(index / 9);
   const step = index % 9;
   const ch = CHAPTERS[chapter];
