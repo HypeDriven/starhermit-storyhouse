@@ -33,6 +33,7 @@ export class UI {
     $('btn-pause-restart').addEventListener('click', () => this.h.onRestart());
     $('btn-pause-leave').addEventListener('click', () => this.h.onLeave());
     $('btn-hint').addEventListener('click', () => this.h.onHint());
+    $('btn-camera').addEventListener('click', () => this.h.onCameraReset?.());
     $('btn-undo').addEventListener('click', () => this.h.onUndo());
     $('btn-mirror').addEventListener('click', () => {
       const btn = $('btn-mirror');
@@ -111,6 +112,9 @@ export class UI {
     if (this._screen === 'settings' && name !== 'settings') this.h.onSound?.('settings-saved');
     for (const s of document.querySelectorAll('.screen')) s.hidden = true;
     this._screen = name;
+    // gameplay drawers never sit over a help/pause/results screen
+    if (name) this.closeDrawers();
+    document.body.classList.toggle('screen-open', !!name);
     if (name) {
       const el = $(`screen-${name}`);
       if (el) {

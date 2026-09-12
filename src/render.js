@@ -282,8 +282,11 @@ export class Stage {
     this._hoverRing = mk(0xffffff);
     this._invalidRing = mk(INVALID_COLOR);
     // Slot markers: instanced rings for legal targets.
-    this._slotMarkers = new THREE.InstancedMesh(ringGeo, new THREE.MeshBasicMaterial({ color: LEGAL_COLOR, transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide }), 48);
-    this._slotMarkers.rotation.x = -Math.PI / 2;
+    // The ring lies flat via the geometry itself: rotating the instanced
+    // parent would also rotate every instance translation, putting the glowing
+    // markers somewhere other than the pick discs they advertise.
+    const flatRingGeo = ringGeo.clone().rotateX(-Math.PI / 2);
+    this._slotMarkers = new THREE.InstancedMesh(flatRingGeo, new THREE.MeshBasicMaterial({ color: LEGAL_COLOR, transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide }), 48);
     this._slotMarkers.count = 0;
     this._slotMarkers.visible = false;
     this._slotMarkers.layers.set(LAYERS.GHOST);

@@ -198,6 +198,7 @@ class App {
       onRestart: () => this.confirmRestart(),
       onLeave: () => this.leaveToTitle(),
       onHint: () => this.hint(),
+      onCameraReset: () => this.stage?.resetCamera(),
       onUndo: () => this.undo(),
       onFinish: () => this.finish(),
       onSetupStart: () => this.startFromSetup(),

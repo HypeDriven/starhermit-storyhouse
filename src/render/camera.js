@@ -10,8 +10,8 @@ export const FRAMING = {
   minDist: 7,
   maxDist: 34,
   lookLift: -0.5,        // aim below the roofline so the tray reads on screen
-  orbitYawLimit: 0.85,   // rad
-  orbitPitchMin: 0.28,
+  orbitYawLimit: 0.6,    // rad — beyond this the side walls hide the rooms
+  orbitPitchMin: 0.5,    // never shallower than the cutaway reads through
   orbitPitchMax: 1.15,
   omega: 5.5,            // spring natural frequency (critically damped)
 };

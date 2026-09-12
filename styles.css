@@ -334,6 +334,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #compat-message { position: absolute; inset: 0; display: grid; place-items: center; background: var(--paper); z-index: 50; padding: 20px; }
 #compat-message[hidden] { display: none; }
 
+/* Gameplay rails and their toggles are inert while any screen is open. */
+body.screen-open #rail-left, body.screen-open #rail-right, body.screen-open .drawer-toggle { visibility: hidden; pointer-events: none; }
+
 /* ============================ BREAKPOINTS ============================ */
 /* Compact desktop / tablet: rails collapse into drawers. */
 @media (max-width: 1023.5px) {
@@ -386,8 +389,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
   }
   #hud-top { padding: 3px 10px; }
   #hud-stage-title { font-size: 0.9em; }
+  .chip-btn .btn-label { display: none; }
+  .chip-btn { padding: 4px 10px; }
   #hud-objective-text { font-size: 0.78em; }
-  #rail-left { display: none; }
+  /* goals stay reachable as a drawer (was display:none, which left the Goals
+     toggle doing nothing) */
+  #rail-left { inset-block-start: calc(96px + var(--sat)); max-height: calc(100% - 180px); width: min(300px, 60vw); }
+  #drawer-left-toggle { inset-block-start: calc(96px + var(--sat)); }
+  #rail-right { inset-block-start: calc(96px + var(--sat)); max-height: calc(100% - 180px); }
+  #drawer-right-toggle { inset-block-start: calc(96px + var(--sat)); }
   .tray-item { min-width: 44px; min-height: 44px; margin: 4px; }
   .chip-btn, .menu-btn, .text-btn, .primary-btn { min-height: 44px; }
   .beat-log { display: none; }
