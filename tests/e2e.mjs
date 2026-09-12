@@ -22,15 +22,15 @@
  * is modified.
  *
  * Serving: starhermit.txt declares `server=server.js`, but the game is fully
- * playable offline. platform.js probes `/api/v1/config` and only sets
- * `hosted=true` when it returns 2xx; without a launch token a hosted probe
- * that answers `{}` would leave `_timeOffset = NaN` (broken daily time), so
- * this test deliberately answers every `/api/*` request with **404** — the
- * client then degrades to its documented local-guest/offline path with zero
- * console noise. It therefore needs no backend and runs on a self-contained
- * node:http static server on an ephemeral port. If the UI ever begins to
- * require the real backend this can be swapped for spawning `server.js`;
- * today it is not needed.
+ * playable offline. Hosted (platform) mode requires a launch token, which
+ * this test never provides; without one platform.js probes `/api/v1/config`
+ * to detect the game's own optional dev server and only enables that richer
+ * contract when it returns 2xx. This test deliberately answers every
+ * `/api/*` request with **404** — the client then degrades to its documented
+ * local-guest/offline path with zero console noise. It therefore needs no
+ * backend and runs on a self-contained node:http static server on an
+ * ephemeral port. If the UI ever begins to require the real backend this can
+ * be swapped for spawning `server.js`; today it is not needed.
  *
  * Run: npm run test:e2e  (or: node tests/e2e.mjs)
  */

@@ -310,10 +310,10 @@ export class UI {
   }
 
   // --------------------------------------------------------------- title
-  setTitleInfo({ journeyDone, journeyTotal, dailyDone, profile, hasSnapshot }) {
+  setTitleInfo({ journeyDone, journeyTotal, dailyDone, profile, sync, hasSnapshot }) {
     $('journey-sub').textContent = `${journeyDone} of ${journeyTotal} stages`;
     $('daily-sub').textContent = dailyDone ? 'Done today — see the board' : 'One shared house, today only';
-    $('profile-badge').textContent = profile ? `Playing as ${profile.name}` : '';
+    $('profile-badge').textContent = profile ? `Playing as ${profile.name}${sync ? ` · ${sync}` : ''}` : '';
     $('resume-line').hidden = !hasSnapshot;
   }
 

@@ -57,7 +57,7 @@ class App {
     this._transition('boot', 'process start');
     await this.platform.init();
     this.platform.setTelemetryConsent(this.settings.telemetry);
-    this.platform.onSaveConflict = ({ local, remote }) => this._resolveSaveConflict(local, remote);
+    this.platform.onSyncChange = () => this._refreshTitle();
 
     // Renderer (or text-mode fallback).
     if (Stage.webglAvailable()) {
@@ -80,8 +80,14 @@ class App {
     this._refreshTitle();
     this._transition('title', 'boot complete');
 
-    // Identity in the background: title → profile-ready.
-    this.platform.ensureProfile().then((p) => {
+    // Identity in the background: title → profile-ready, then adopt the
+    // cloud save (remote wins; localStorage stays the offline cache).
+    this.platform.ensureProfile().then(async () => {
+      const remote = await this.platform.loadCloudSave();
+      if (remote && this.platform.adoptRemoteProgress(remote)) {
+        this.progress = this.platform.loadProgress();
+        this.ui.toast('Cloud save restored to this device.');
+      }
       this._refreshTitle();
       this._transition('profile-ready', 'identity resolved');
     });
@@ -118,6 +124,7 @@ class App {
       journeyTotal: C.journeyLength(),
       dailyDone: this.progress.lastDaily?.date === this.platform.utcToday(),
       profile: this.platform.profile,
+      sync: this.platform.hosted ? this.platform.syncLabel() : null,
       hasSnapshot: !!this.platform.loadSnapshot(),
     });
   }
@@ -464,28 +471,6 @@ class App {
       }
     });
     this.ui.showScreen('settings');
-  }
-
-  _resolveSaveConflict(localDoc, remoteDoc) {
-    // Neither snapshot descends from the other: preserve both, ask the player.
-    const localScenes = localDoc.scenesCount ?? 0;
-    const remoteScenes = remoteDoc.scenesCount ?? 0;
-    this.ui.showDialog({
-      title: 'Two save files found',
-      text: `This device has ${localScenes} scenes and the cloud has a different save with ${remoteScenes} scenes. Both are safe — which should continue from here?`,
-      buttons: [
-        { label: `Keep this device (${localScenes} scenes)`, primary: true, action: async () => {
-          await this.platform._api('/api/v1/save', { method: 'PUT', body: JSON.stringify({ doc: localDoc, baseVersion: remoteDoc.v }) });
-          this.ui.toast('This device’s save now syncs to the cloud.');
-        } },
-        { label: `Use the cloud save (${remoteScenes} scenes)`, action: () => {
-          this.progress = remoteDoc;
-          this.platform.saveProgress(remoteDoc);
-          this._refreshTitle();
-          this.ui.toast('Cloud save restored to this device.');
-        } },
-      ],
-    });
   }
 
   confirmWipe() {
@@ -1145,7 +1130,7 @@ class App {
     let compareText = '';
     const ranked = this.session.content.ranked && !this.settings.timingAssist;
     if (ranked) {
-      compareText = 'Submitting to the leaderboard…';
+      compareText = this.platform.hosted ? 'Saving your result…' : 'Submitting to the leaderboard…';
       const submission = {
         mode: this.mode, contentId: st.contentId, seed: st.seed,
         ruleset: R.RULESET_VERSION, contentVersion: C.CONTENT_VERSION,
@@ -1165,7 +1150,9 @@ class App {
         if (r?.entry) {
           const board = await this.platform.leaderboard(this.mode === 'daily' ? 'daily' : 'global', { contentId: st.contentId });
           const rank = board.entries.findIndex(e => e.sessionId === r.entry.sessionId) + 1;
-          const label = r.source === 'server' ? 'leaderboard' : 'local board (casual — offline)';
+          const label = r.source === 'server' ? 'leaderboard'
+            : this.platform.hosted ? 'local best (platform leaderboards are read-only)'
+            : 'local board (casual — offline)';
           el.textContent = rank > 0
             ? `Placed #${rank} of ${board.entries.length} on the ${label}.`
             : `Score saved to the ${label}.`;
