@@ -157,6 +157,58 @@ async function makeBeat(page, room, charSlot) {
   }, bi, { timeout: 4000 });
 }
 
+// ---------- graphics settings (real Settings → Graphics controls) ----------
+async function graphicsPass(page, name, { fromPause }) {
+  const openSettings = async () => {
+    if (fromPause) {
+      await page.click('#btn-pause');
+      await page.waitForFunction(() => !document.getElementById('overlay-pause').hidden);
+      await page.click('#btn-pause-settings');
+    } else {
+      await page.click('#screen-title [data-goto="settings"]');
+    }
+    await page.waitForFunction(() => !document.getElementById('screen-settings').hidden);
+    await page.locator('#gfx-preset').scrollIntoViewIfNeeded();
+  };
+  const preset = () => page.evaluate(() => document.body.dataset.gfxPreset);
+  await openSettings();
+  const auto = await page.locator('#gfx-preset option[value="auto"]').textContent();
+  if (!/\(.+\)/.test(auto)) throw new Error(`Auto option lacks the detected tier: "${auto}"`);
+  await page.selectOption('#gfx-preset', 'low');
+  await page.waitForFunction(() => document.body.dataset.gfxPreset === 'low');
+  await page.selectOption('#gfx-preset', 'ultra');
+  await page.waitForFunction(() => document.body.dataset.gfxPreset === 'ultra');
+  await page.waitForTimeout(1200); // let a few frames render through the full post chain
+  await page.selectOption('#gfx-preset', 'high');
+  await page.waitForFunction(() => document.body.dataset.gfxPreset === 'high');
+  const fromPreset = await page.locator('#gfx-bloom option[value="preset"]').textContent();
+  if (!/\(.+\)/.test(fromPreset)) throw new Error(`override default lacks the preset tier: "${fromPreset}"`);
+  await page.selectOption('#gfx-bloom', 'off');
+  await page.waitForFunction(() => !/bloom/.test(document.getElementById('gfx-summary').textContent));
+  const summary = (await page.textContent('#gfx-summary')).trim();
+  if (!/\d+×\d+ px/.test(summary)) throw new Error(`summary lacks pixel size: "${summary}"`);
+  // The panel fits the viewport width (no horizontal cut-off).
+  const overflow = await page.evaluate(() => {
+    const r = document.getElementById('gfx-panel').getBoundingClientRect();
+    return r.left < 0 || r.right > window.innerWidth + 1;
+  });
+  if (overflow) throw new Error('graphics panel overflows the viewport');
+  await page.screenshot({ path: SHOT('graphics', name) });
+  ok(`${name}: Graphics panel — Low → Ultra → High, bloom override off ("${summary}")`);
+
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !!window.storyhouse && !document.getElementById('screen-title').hidden, null, { timeout: 15000 });
+  if ((await preset()) !== 'high') throw new Error('graphics preset did not survive reload');
+  await page.click('#screen-title [data-goto="settings"]');
+  await page.waitForFunction(() => !document.getElementById('screen-settings').hidden);
+  const bloom = await page.locator('#gfx-bloom').inputValue();
+  if (bloom !== 'off') throw new Error(`bloom override did not survive reload (${bloom})`);
+  // Choosing a preset clears overrides.
+  await page.selectOption('#gfx-preset', 'low');
+  await page.waitForFunction(() => document.body.dataset.gfxPreset === 'low' && document.getElementById('gfx-bloom').value === 'preset');
+  ok(`${name}: graphics settings survive reload; choosing a preset clears overrides`);
+}
+
 // ---------- one full pass ----------
 async function runPass(browser, name, ctxOpts, { full }) {
   const errors = [];
@@ -164,7 +216,7 @@ async function runPass(browser, name, ctxOpts, { full }) {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() !== 'error' || browserNoise.test(m.text())) return;
+    if ((m.type() !== 'error' && m.type() !== 'warning') || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
     if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
     errors.push(`console: ${m.text()}`);
@@ -286,6 +338,11 @@ async function runPass(browser, name, ctxOpts, { full }) {
       const stars = await page.locator('#results-stars [aria-label]').count();
       await page.screenshot({ path: SHOT('results', name) });
       ok(`${name}: scene saved — results shown ("${headline}", ${rows} score rows)`);
+      await page.click('#btn-results-home');
+      await page.waitForFunction(() => !document.getElementById('screen-title').hidden);
+      await graphicsPass(page, name, { fromPause: false });
+    } else {
+      await graphicsPass(page, name, { fromPause: true });
     }
   } finally {
     await context.close();

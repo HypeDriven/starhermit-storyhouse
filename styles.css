@@ -271,7 +271,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 .settings-form { display: grid; gap: 14px; }
-.settings-form fieldset { border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 8px; padding: 12px 16px; margin: 0; }
+.settings-form fieldset { border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 8px; padding: 12px 16px; margin: 0; min-width: 0; }
 .settings-form legend { color: var(--ink-dim); padding-inline: 6px; }
 .settings-form label { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 36px; }
 .settings-form label.check { justify-content: flex-start; }
@@ -282,6 +282,30 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 40px;
 }
 .settings-form output { min-width: 3ch; text-align: end; color: var(--ink-dim); }
+
+/* Graphics panel (built by gfx-panel.js) */
+.gfx-panel { display: grid; gap: 8px; min-width: 0; }
+.gfx-panel .gfx-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.gfx-panel select { max-width: 62%; min-width: 0; text-overflow: ellipsis; }
+.gfx-scale { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: flex-end; min-width: 0; white-space: nowrap; }
+.gfx-scale input[type="range"] { min-width: 80px; }
+.gfx-scale output { min-width: 4.5ch; }
+.gfx-subhead { margin: 6px 0 0; color: var(--ink-dim); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.08em; }
+.gfx-summary { margin: 4px 0 0; overflow-wrap: anywhere; }
+.gfx-note { margin: 0; color: var(--bad, #f0a08c); }
+#fps-meter {
+  position: fixed; left: calc(8px + var(--sal, 0px)); bottom: calc(8px + var(--sab, 0px)); z-index: 50;
+  pointer-events: none; font: 12px/1.2 ui-monospace, monospace; color: var(--ink);
+  background: color-mix(in srgb, var(--paper) 70%, transparent); padding: 3px 6px; border-radius: 6px;
+}
+#fps-meter[hidden] { display: none; }
+/* No story open and no backdrop: keep the stale canvas out of sight. */
+body.no-scene #gl { visibility: hidden; }
+/* With the furnished-house backdrop, the title lets the scene show through. */
+body.has-backdrop #screen-title {
+  background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--paper) 86%, transparent) 0%, color-mix(in srgb, var(--paper) 72%, transparent) 55%, color-mix(in srgb, var(--paper) 50%, transparent) 100%);
+  backdrop-filter: blur(2px);
+}
 .bindings-editor { display: grid; gap: 4px; }
 .bindings-editor .binding-row button { min-width: 110px; }
 

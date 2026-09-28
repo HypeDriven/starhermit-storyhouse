@@ -10,6 +10,7 @@ import { AudioEngine } from './audio.js';
 import { Platform, BUILD } from './platform.js?v=production-qa-1';
 import { GameSession } from './session.js';
 import { defaultSettings } from './persist.js';
+import { GraphicsPanel } from './gfx-panel.js';
 import * as R from './rules.js';
 import * as C from './content.js';
 import { RngStream, deriveSeed } from './rng.js';
@@ -25,7 +26,7 @@ class NullStage {
   pick() { return null; } worldOnGround() { return null; }
   setSelection() {} setHoverTarget() {} setCursor() {}
   focusRoom() {} resetCamera() {} orbit() {} zoom() {}
-  setQualityTier() {} setAutoQuality() {} setReducedMotion() {}
+  setGraphics() {} graphicsInfo() { return null; } setBackdrop() {} setReducedMotion() {}
   setRunning() {} captureThumbnail() { return null; } dispose() {}
   piecePos() { return null; } roomIds() { return []; }
 }
@@ -62,7 +63,7 @@ class App {
     // Renderer (or text-mode fallback).
     if (Stage.webglAvailable()) {
       this.stage = new Stage(document.getElementById('gl'), {
-        onTierChange: (tier) => this.ui.toast(`Graphics adjusted to “${tier}” to keep things smooth.`),
+        onGraphicsInfo: () => this.gfxPanel?.sync(),
         onContextLost: () => this.ui.toast('Graphics context lost — rebuilding…', 'bad'),
         onContextRestored: () => this.ui.toast('Graphics restored.'),
       });
@@ -74,6 +75,11 @@ class App {
     }
 
     this.input = new Input(document.getElementById('gl'), this.stage, this._inputHandlers());
+    this.gfxPanel = new GraphicsPanel(document.getElementById('gfx-panel'), {
+      get: () => this.settings.gfx,
+      set: (gfx) => this._applySettings({ gfx }),
+      info: (words) => this.stage.graphicsInfo(words),
+    });
     this._applySettings();
     this._bindGlobalKeys();
     this._bindLifecycle();
@@ -112,7 +118,7 @@ class App {
     this.state = to;
     console.info(`[storyhouse] ${from} → ${to} (${reason})`);
     // Screen routing per state.
-    if (to === 'title' || to === 'profile-ready') this.ui.showScreen('title');
+    if (to === 'title' || to === 'profile-ready') { this.ui.showScreen('title'); this._syncBackdrop(); }
     if (to === 'mode-select') this.ui.showScreen('setup');
     if (to === 'results') this.ui.showScreen('results');
   }
@@ -136,11 +142,42 @@ class App {
     this._applyAudioSettings();
     this.ui.setCaptions(this.settings.captions);
     this.platform.setTelemetryConsent(this.settings.telemetry);
-    const q = this.settings.quality === 'auto' ? 'high' : this.settings.quality;
-    this.stage.setAutoQuality(this.settings.quality === 'auto');
-    this.stage.setQualityTier(q);
     this.stage.setReducedMotion(this.settings.reducedMotion);
+    // Graphics apply live, but only when they changed (recompiles materials).
+    const gfxKey = JSON.stringify(this.settings.gfx || {});
+    if (gfxKey !== this._gfxKey) {
+      this._gfxKey = gfxKey;
+      this.stage.setGraphics(this.settings.gfx);
+      this._syncBackdrop();
+    }
     this.platform.saveSettings(this.settings);
+  }
+
+  /** Title backdrop: a furnished demo house behind the menus when no story is open. */
+  _syncBackdrop() {
+    if (this.session || !this.stage?.q) return;
+    const mode = this.stage.q.backdrop;
+    if (mode === 'off' || document.hidden) {
+      this.stage.setBackdrop(null);
+      this.stage.setRunning(false);
+      document.body.classList.remove('has-backdrop');
+      document.body.classList.add('no-scene');
+      return;
+    }
+    if (!this.stage.backdrop) {
+      const content = C.practiceContent('standard', 3, 'meadow');
+      const state = R.createGame(content);
+      const tray = state.tray.slice();
+      for (const room of state.rooms) {
+        for (let k = 0; k < Math.min(2, room.slots.length) && tray.length; k++) room.slots[k] = tray.shift();
+      }
+      state.tray = tray;
+      this.stage.startSession({ content, theme: C.THEMES[content.theme] || C.THEMES.meadow, state });
+    }
+    this.stage.setBackdrop(mode);
+    this.stage.setRunning(true);
+    document.body.classList.add('has-backdrop');
+    document.body.classList.remove('no-scene');
   }
   _applyAudioSettings() {
     for (const bus of ['music', 'effects', 'ambience', 'voice']) this.audio.setVolume(bus, this.settings[bus]);
@@ -172,6 +209,7 @@ class App {
         this.audio.suspend();
       } else {
         this.audio.resume();
+        this._syncBackdrop();
         if (this.session && this.state === 'paused') {
           this.stage.setRunning(true);
           if (this._awayAt && !this._awayToastShown) {
@@ -452,6 +490,7 @@ class App {
   openSettings() {
     this._transition('mode-select', 'settings');
     this.ui.bindSettings(this.settings, (patch) => this._applySettings(patch));
+    this.gfxPanel?.sync();
     this.ui.bindingsEditor(this.settings, (action, done) => {
       if (action.startsWith('pad:')) {
         this.input.captureNextPadButton((btn) => {
@@ -558,6 +597,7 @@ class App {
     }
 
     this.stage.startSession({ content, theme: this._theme, state: this.session.state });
+    document.body.classList.remove('has-backdrop', 'no-scene');
     this.ui.showScreen(null);
     this.ui.setHudVisible(true);
     this.ui.setPaused(false);

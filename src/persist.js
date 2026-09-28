@@ -3,6 +3,7 @@
 // Shared by the browser platform layer and by Node tests.
 import { hashValue } from './rng.js';
 import { hashState } from './rules.js';
+import { defaultGfx, PRESETS } from './gfx.js';
 
 export const SETTINGS_VERSION = 1;
 export const PROGRESS_VERSION = 1;
@@ -13,7 +14,8 @@ export function defaultSettings() {
     v: SETTINGS_VERSION,
     music: 70, effects: 80, ambience: 55, voice: 65,
     mute: false, captions: false,
-    quality: 'auto',
+    // Graphics quality model (see gfx.js): preset + per-category overrides.
+    gfx: defaultGfx(),
     reducedMotion: false, highContrast: false, largeText: false,
     palette: 'default', lefty: false, dragMode: 'both',
     timingAssist: false, hapticsOff: false,
@@ -47,9 +49,19 @@ export function migrateSettings(doc) {
       bindings: { ...def.bindings, ...(doc.bindings || {}) },
       gamepad: { ...def.gamepad, ...(doc.gamepad || {}) },
       tutorialsDone: { ...(doc.tutorialsDone || {}) },
+      gfx: migrateGfx(doc),
     };
   }
-  return { ...def, ...doc, v: SETTINGS_VERSION };
+  return { ...def, ...doc, v: SETTINGS_VERSION, gfx: migrateGfx(doc) };
+}
+
+// Older builds stored a single `quality` tier (auto/high/medium/low).
+const LEGACY_QUALITY = { high: 'high', medium: 'balanced', low: 'low' };
+function migrateGfx(doc) {
+  const gfx = { ...defaultGfx(), ...(doc.gfx && typeof doc.gfx === 'object' ? doc.gfx : {}) };
+  if (!doc.gfx && LEGACY_QUALITY[doc.quality]) gfx.preset = LEGACY_QUALITY[doc.quality];
+  if (gfx.preset !== 'auto' && !PRESETS.includes(gfx.preset)) gfx.preset = 'auto';
+  return gfx;
 }
 
 export function defaultProgress() {

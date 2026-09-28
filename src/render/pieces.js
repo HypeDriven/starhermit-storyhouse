@@ -6,8 +6,16 @@ import * as THREE from 'three';
 
 const LAYER_GAME = 1;
 
+// PBR materials: `coat` adds a clearcoat layer for glazed / lacquered pieces.
+// envMapIntensity keeps image-based light a subtle fill, not a wash.
 function mat(color, opts = {}) {
-  return new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.75, metalness: opts.metal ?? 0.05, emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1 });
+  const params = {
+    color, roughness: opts.rough ?? 0.75, metalness: opts.metal ?? 0.05,
+    emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1,
+    envMapIntensity: opts.env ?? (opts.metal > 0.3 ? 0.9 : 0.45),
+  };
+  if (opts.coat) return new THREE.MeshPhysicalMaterial({ ...params, clearcoat: opts.coat, clearcoatRoughness: opts.coatRough ?? 0.18 });
+  return new THREE.MeshStandardMaterial(params);
 }
 function mesh(geo, material, x = 0, y = 0, z = 0, rot = null, scale = null) {
   const m = new THREE.Mesh(geo, material);
@@ -62,7 +70,7 @@ function makePip() {
   g.add(mesh(new THREE.TorusGeometry(0.06, 0.018, 6, 12), brass, 0, 0.4, -0.36));
   // antenna
   g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.14, 5), brass, 0.05, 0.95, 0));
-  g.add(mesh(new THREE.SphereGeometry(0.03, 8, 6), mat(0xd95d4e, { emissive: 0xd95d4e, ei: 0.5 }), 0.05, 1.03, 0));
+  g.add(mesh(new THREE.SphereGeometry(0.03, 8, 6), mat(0xd95d4e, { emissive: 0xff6a50, ei: 3.0 }), 0.05, 1.03, 0));
   addEyes(g, 0.73, 0.085, 0.04);
   contactShadow(g);
   return g;
@@ -144,7 +152,7 @@ function makeBiscuit() {
 // ---------------------------------------------------------------------------
 function makeBook() {
   const g = new THREE.Group();
-  g.add(mesh(new THREE.BoxGeometry(0.42, 0.1, 0.32), mat(0xb04a3a), 0, 0.06, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.42, 0.1, 0.32), mat(0xb04a3a, { rough: 0.55, coat: 0.3, coatRough: 0.4 }), 0, 0.06, 0));
   g.add(mesh(new THREE.BoxGeometry(0.38, 0.06, 0.28), mat(0xf2e8d0), 0.01, 0.075, 0));
   g.add(mesh(new THREE.BoxGeometry(0.05, 0.11, 0.33), mat(0x8a352a), -0.2, 0.06, 0));
   g.add(mesh(new THREE.TorusGeometry(0.05, 0.012, 5, 10), mat(0xd9b06a, { metal: 0.4 }), 0, 0.12, 0, { x: Math.PI / 2 }));
@@ -153,7 +161,7 @@ function makeBook() {
 }
 function makeTeapot() {
   const g = new THREE.Group();
-  const cel = mat(0x8fb8a8, { rough: 0.35 });
+  const cel = mat(0x8fb8a8, { rough: 0.3, coat: 1 });
   g.add(mesh(lathe([[0, 0], [0.2, 0.02], [0.26, 0.18], [0.18, 0.34], [0.08, 0.38]]), cel, 0, 0, 0));
   g.add(mesh(new THREE.SphereGeometry(0.06, 8, 6), cel, 0, 0.4, 0));
   g.add(mesh(tube([[0.2, 0.2, 0], [0.32, 0.28, 0], [0.34, 0.36, 0]], 0.04), cel));
@@ -163,7 +171,7 @@ function makeTeapot() {
 }
 function makePiano() {
   const g = new THREE.Group();
-  const wood = mat(0x4a3226, { rough: 0.5 });
+  const wood = mat(0x4a3226, { rough: 0.45, coat: 0.8 });
   g.add(mesh(new THREE.BoxGeometry(0.9, 0.75, 0.3), wood, 0, 0.45, -0.12));
   g.add(mesh(new THREE.BoxGeometry(0.9, 0.06, 0.36), wood, 0, 0.42, 0.02));
   g.add(mesh(new THREE.BoxGeometry(0.8, 0.03, 0.14), mat(0xf2ede0, { rough: 0.4 }), 0, 0.45, 0.06));
@@ -217,7 +225,7 @@ function makeLamp() {
   const brass = mat(0xc9a24a, { metal: 0.4, rough: 0.4 });
   g.add(mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.05, 12), brass, 0, 0.03, 0));
   g.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.4, 8), brass, 0, 0.24, 0));
-  g.add(mesh(lathe([[0.06, 0], [0.22, 0.14], [0.2, 0.22], [0.08, 0.26]]), mat(0xe8d48a, { emissive: 0xffd98a, ei: 0.35 }), 0, 0.42, 0));
+  g.add(mesh(lathe([[0.06, 0], [0.22, 0.14], [0.2, 0.22], [0.08, 0.26]]), mat(0xe8d48a, { emissive: 0xffd98a, ei: 1.6 }), 0, 0.42, 0));
   contactShadow(g, 0.22);
   return g;
 }
@@ -235,7 +243,7 @@ function makeBasket() {
 }
 function makeClock() {
   const g = new THREE.Group();
-  const wood = mat(0x5a3a2a);
+  const wood = mat(0x5a3a2a, { rough: 0.5, coat: 0.6 });
   g.add(mesh(new THREE.BoxGeometry(0.4, 0.72, 0.2), wood, 0, 0.38, 0));
   g.add(mesh(new THREE.BoxGeometry(0.44, 0.1, 0.24), wood, 0, 0.78, 0));
   g.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.03, 16), mat(0xf2e8d0), 0, 0.6, 0.1, { x: Math.PI / 2 }));

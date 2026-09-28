@@ -138,6 +138,71 @@ function dressing(type, P, detail) {
 }
 
 // ---------------------------------------------------------------------------
+// Surface detail: world-space procedural patterns injected into the standard
+// material (no textures, no UVs needed). Floorboards on floor-coloured tops,
+// striped wallpaper on wall-coloured faces, fine grain everywhere and a soft
+// glow on window panes. `uDetail` (0/1) switches it off for the Plain tier.
+// ---------------------------------------------------------------------------
+const DETAIL_GLSL = `
+  float shHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float shNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(shHash(i), shHash(i + vec2(1, 0)), f.x), mix(shHash(i + vec2(0, 1)), shHash(i + vec2(1, 1)), f.x), f.y);
+  }
+`;
+
+function addSurfaceDetail(material, uniforms, keys) {
+  material.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vShWorld;\nvarying vec3 vShNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvShWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvShNormal = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vShWorld; varying vec3 vShNormal;
+        uniform float uDetail; uniform vec3 uWall; uniform vec3 uFloor; uniform vec3 uPane; uniform float uGround;
+        ${DETAIL_GLSL}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float shGlow = 0.0;
+        if (uDetail > 0.5) {
+          vec3 wp = vShWorld; vec3 wn = normalize(vShNormal);
+          float k = 1.0;
+          if (uGround > 0.5) {
+            k *= 0.9 + 0.2 * shNoise(wp.xz * 0.45) + 0.06 * shNoise(wp.xz * 3.1);
+          } else {
+            #ifdef USE_COLOR
+            vec3 base = vColor.rgb;
+            float onFloor = step(distance(base, uFloor), 0.02) * step(0.9, wn.y);
+            float onWall = step(distance(base, uWall), 0.02) * step(0.9, abs(wn.z));
+            float onPane = step(distance(base, uPane), 0.02) * step(0.9, abs(wn.z));
+            // Floorboards: 0.3-wide planks with staggered joints and per-board tint.
+            float row = floor(wp.z / 0.3);
+            float along = wp.x + shHash(vec2(row, 3.0)) * 2.0;
+            float board = floor(along / 1.4);
+            float fz = fract(wp.z / 0.3), fx = fract(along / 1.4);
+            float seam = max(1.0 - smoothstep(0.0, 0.04, min(fz, 1.0 - fz)),
+                             1.0 - smoothstep(0.0, 0.008, min(fx, 1.0 - fx)));
+            float plank = 0.92 + 0.14 * shHash(vec2(row, board)) + 0.05 * shNoise(vec2(along * 6.0, wp.z * 40.0));
+            k *= mix(1.0, plank * (1.0 - 0.28 * seam), onFloor);
+            // Wallpaper: soft vertical stripes with a faint dotted motif.
+            float stripe = smoothstep(0.35, 0.5, abs(fract(wp.x / 0.26) - 0.5));
+            vec2 dp = fract(vec2(wp.x / 0.26, wp.y / 0.3)) - 0.5;
+            float dotm = 1.0 - smoothstep(0.05, 0.08, length(dp));
+            k *= mix(1.0, 1.0 - 0.05 * stripe - 0.04 * dotm, onWall);
+            shGlow = onPane;
+            #endif
+            k *= 0.97 + 0.06 * shNoise(wp.xy * 9.0 + wp.zz * 7.0);
+          }
+          diffuseColor.rgb *= k;
+        }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += diffuseColor.rgb * shGlow * 0.9;`);
+  };
+  material.customProgramCacheKey = () => 'storyhouse-detail-' + keys;
+}
+
+// ---------------------------------------------------------------------------
 // House assembly
 // ---------------------------------------------------------------------------
 export function buildHouse(layout, theme, detail = 1) {
@@ -157,7 +222,13 @@ export function buildHouse(layout, theme, detail = 1) {
   const houseH = rows * (ROOM_H + ROOM_GAP) - ROOM_GAP;
   const x0 = -houseW / 2 + ROOM_W / 2;
 
-  const envMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 });
+  const envMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0.02 });
+  const detailUniform = { value: detail > 0 ? 1 : 0 };
+  const lin = (hex) => new THREE.Color(hex); // Color() converts sRGB hex to linear, matching vertex colours
+  addSurfaceDetail(envMat, {
+    uDetail: detailUniform, uWall: { value: lin(P.wall) }, uFloor: { value: lin(P.floor) },
+    uPane: { value: lin(P.skyColor) }, uGround: { value: 0 },
+  }, 'env');
 
   for (const room of layout.rooms) {
     const cx = x0 + room.gx * (ROOM_W + ROOM_GAP);
@@ -223,10 +294,12 @@ export function buildHouse(layout, theme, detail = 1) {
 
   // Ground.
   const extent = Math.max(houseW, houseH) * 0.5 + 4;
-  const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(extent * 1.6, 40),
-    new THREE.MeshStandardMaterial({ color: P.ground, roughness: 1 }),
-  );
+  const groundMat = new THREE.MeshStandardMaterial({ color: P.ground, roughness: 1 });
+  addSurfaceDetail(groundMat, {
+    uDetail: detailUniform, uWall: { value: new THREE.Color() }, uFloor: { value: new THREE.Color() },
+    uPane: { value: new THREE.Color() }, uGround: { value: 1 },
+  }, 'ground');
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(extent * 1.6, 40), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.22;
   ground.receiveShadow = true;
@@ -235,5 +308,5 @@ export function buildHouse(layout, theme, detail = 1) {
 
   const houseCenter = new THREE.Vector3(0, houseH / 2 - 0.4, 0);
   const houseExtent = Math.max(houseW, houseH * 1.15) / 2 + 1.2;
-  return { group, roomAnchors, houseCenter, houseExtent, houseW, houseH, envMat };
+  return { group, roomAnchors, houseCenter, houseExtent, houseW, houseH, envMat, groundMat, detailUniform };
 }

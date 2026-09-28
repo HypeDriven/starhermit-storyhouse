@@ -557,7 +557,6 @@ export class UI {
       el.value = s[key];
       el.onchange = () => { this.h.onSound?.('toggle'); onChange({ [key]: el.value }); };
     };
-    bindSelect('set-quality', 'quality');
     bindSelect('set-palette', 'palette');
     bindSelect('set-drag-mode', 'dragMode');
     $('btn-reset-bindings').onclick = () => this.h.onResetBindings();
