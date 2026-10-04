@@ -23,14 +23,10 @@
  *
  * Serving: starhermit.txt declares `server=server.js`, but the game is fully
  * playable offline. Hosted (platform) mode requires a launch token, which
- * this test never provides; without one platform.js probes `/api/v1/config`
- * to detect the game's own optional dev server and only enables that richer
- * contract when it returns 2xx. This test deliberately answers every
- * `/api/*` request with **404** — the client then degrades to its documented
- * local-guest/offline path with zero console noise. It therefore needs no
- * backend and runs on a self-contained node:http static server on an
- * ephemeral port. If the UI ever begins to require the real backend this can
- * be swapped for spawning `server.js`; today it is not needed.
+ * this test never provides; without one the client makes no own-server
+ * calls at all (local-guest/offline path). It runs on a self-contained
+ * node:http static server (no /api routes) on an ephemeral port and fails on
+ * any same-origin /api or /ws request.
  *
  * Run: npm run test:e2e  (or: node tests/e2e.mjs)
  */
@@ -68,14 +64,6 @@ const server = http.createServer(async (req, res) => {
   try {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p === '/') p = '/index.html';
-    // No StarHermit backend here. Answer every API probe with 404 so the
-    // platform adapter stays in its documented offline/local-guest mode
-    // (hosted=false, time offset 0) with no console noise.
-    if (p.startsWith('/api/')) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end('{"error":"offline"}');
-      return;
-    }
     const file = path.normalize(path.join(ROOT, p));
     if (!file.startsWith(ROOT)) { res.writeHead(403).end('forbidden'); return; }
     const data = await readFile(file);
@@ -215,15 +203,19 @@ async function runPass(browser, name, ctxOpts, { full }) {
   const context = await browser.newContext(ctxOpts);
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('request', (req) => {
+    const u = new URL(req.url());
+    if (u.origin === BASE && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`own-server request: ${req.method()} ${u.pathname}`);
+  });
   page.on('console', (m) => {
     if ((m.type() !== 'error' && m.type() !== 'warning') || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
-    if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
+    if (/Failed to load resource/.test(m.text()) && /\/favicon/.test(url)) return;
     errors.push(`console: ${m.text()}`);
   });
   page.on('response', (r) => {
     const p = r.url();
-    if (r.status() >= 400 && !/\/api\/|\/favicon/.test(p)) errors.push(`http ${r.status()}: ${p}`);
+    if (r.status() >= 400 && !/\/favicon/.test(p)) errors.push(`http ${r.status()}: ${p}`);
   });
 
   try {

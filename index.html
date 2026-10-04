@@ -13,6 +13,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 14 16 4l12 10v14H4z' fill='%23c98a5e'/%3E%3Crect x='8' y='17' width='6' height='6' fill='%23f3e9c8'/%3E%3Crect x='18' y='17' width='6' height='6' fill='%237fb069'/%3E%3C/svg%3E">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }</script>
 <script src="browser-guard.js"></script>
+<script src="starhermit-sdk.js"></script>
 </head>
 <body>
 <div id="app">
@@ -87,6 +88,8 @@
         <button class="text-btn" type="button" data-goto="scrapbook">Scrapbook</button>
         <button class="text-btn" type="button" data-goto="help">How to play</button>
         <button class="text-btn" type="button" data-goto="settings">Settings</button>
+        <button id="btn-signin" class="text-btn" type="button" hidden>Sign in with StarHermit</button>
+        <button id="btn-invite" class="text-btn" type="button" hidden>Invite a friend</button>
         <span id="profile-badge" class="profile-badge"></span>
       </div>
       <p id="resume-line" class="resume-line" hidden><button id="btn-resume-session" class="text-btn" type="button">Continue your paused story →</button></p>

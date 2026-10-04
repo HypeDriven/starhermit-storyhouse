@@ -21,22 +21,58 @@ export function defaultSettings() {
     timingAssist: false, hapticsOff: false,
     telemetry: false,
     tutorialsDone: {},
-    // Desktop action bindings; players may override. Touch stays responsive UI.
-    bindings: {
-      confirm: ['Enter', ' '],
-      cancel: ['Escape'],
-      pause: ['p', 'Escape'],
-      undo: ['u'],
-      hint: ['h'],
-      camera: ['c'],
-      mute: ['m'],
-      left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
-    },
+    // Desktop action bindings as KeyboardEvent.code values (mirrors the
+    // control.* lines in starhermit.txt); players may override. Touch stays
+    // responsive UI.
+    bindings: defaultBindings(),
     gamepad: {
       confirm: 0, cancel: 1, interact: 2, hint: 3,
       undo: 4, pause: 9, cycleRoomL: 6, cycleRoomR: 7,
     },
   };
+}
+
+export function defaultBindings() {
+  return {
+    confirm: ['Enter', 'Space'],
+    cancel: ['Escape'],
+    pause: ['KeyP'],
+    undo: ['KeyU'],
+    hint: ['KeyH'],
+    camera: ['KeyC'],
+    mute: ['KeyM'],
+    left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
+  };
+}
+
+/** Older builds stored KeyboardEvent.key values ('u', ' '); map to codes. */
+export function keyToCode(k) {
+  k = String(k);
+  if (/^[a-z]$/i.test(k)) return 'Key' + k.toUpperCase();
+  if (/^[0-9]$/.test(k)) return 'Digit' + k;
+  if (k === ' ') return 'Space';
+  return k;
+}
+function migrateBindings(b) {
+  const out = defaultBindings();
+  for (const [action, keys] of Object.entries(b || {})) {
+    if (!Array.isArray(keys) || !keys.length) continue;
+    out[action] = [...new Set(keys.map(keyToCode))];
+  }
+  // Escape is the cancel action (which also pauses); one action per code.
+  if (out.pause.includes('Escape') && out.cancel.includes('Escape')) {
+    out.pause = out.pause.filter(c => c !== 'Escape');
+    if (!out.pause.length) out.pause = ['KeyP'];
+  }
+  return out;
+}
+
+/** Short on-screen label for a KeyboardEvent.code. */
+export function codeLabel(code) {
+  const c = String(code);
+  if (/^Key[A-Z]$/.test(c)) return c.slice(3);
+  if (/^Digit\d$/.test(c)) return c.slice(5);
+  return { Escape: 'Esc', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' }[c] || c;
 }
 
 export function migrateSettings(doc) {
@@ -46,13 +82,13 @@ export function migrateSettings(doc) {
     // Tolerate missing keys from older/partial writes.
     return {
       ...def, ...doc,
-      bindings: { ...def.bindings, ...(doc.bindings || {}) },
+      bindings: migrateBindings(doc.bindings),
       gamepad: { ...def.gamepad, ...(doc.gamepad || {}) },
       tutorialsDone: { ...(doc.tutorialsDone || {}) },
       gfx: migrateGfx(doc),
     };
   }
-  return { ...def, ...doc, v: SETTINGS_VERSION, gfx: migrateGfx(doc) };
+  return { ...def, ...doc, v: SETTINGS_VERSION, bindings: migrateBindings(doc.bindings), gfx: migrateGfx(doc) };
 }
 
 // Older builds stored a single `quality` tier (auto/high/medium/low).

@@ -9,7 +9,8 @@ import { Input } from './ui-input.js';
 import { AudioEngine } from './audio.js';
 import { Platform, BUILD } from './platform.js?v=production-qa-1';
 import { GameSession } from './session.js';
-import { defaultSettings } from './persist.js';
+import { defaultSettings, defaultBindings, codeLabel } from './persist.js';
+import { shText } from './sh-i18n.js';
 import { GraphicsPanel } from './gfx-panel.js';
 import * as R from './rules.js';
 import * as C from './content.js';
@@ -59,6 +60,10 @@ class App {
     await this.platform.init();
     this.platform.setTelemetryConsent(this.settings.telemetry);
     this.platform.onSyncChange = () => this._refreshTitle();
+    this.platform.onAuthChange = (a) => {
+      if (!a.signedIn) this.ui.toast(shText('signedOut'));
+      this._refreshTitle();
+    };
 
     // Renderer (or text-mode fallback).
     if (Stage.webglAvailable()) {
@@ -87,8 +92,15 @@ class App {
     this._transition('title', 'boot complete');
 
     // Identity in the background: title → profile-ready, then adopt the
-    // cloud save (remote wins; localStorage stays the offline cache).
+    // cloud save (remote wins; localStorage stays the offline cache), the
+    // platform-stored preferences and the player's control bindings.
     this.platform.ensureProfile().then(async () => {
+      const [prefs, bindings] = await Promise.all([
+        this.platform.loadPlatformSettings(this.settings),
+        this.platform.loadBindings(defaultBindings()),
+      ]);
+      if (prefs && Object.keys(prefs).length) this._applySettings(prefs);
+      if (bindings) this._applySettings({ bindings: { ...this.settings.bindings, ...bindings } });
       const remote = await this.platform.loadCloudSave();
       if (remote && this.platform.adoptRemoteProgress(remote)) {
         this.progress = this.platform.loadProgress();
@@ -132,6 +144,8 @@ class App {
       profile: this.platform.profile,
       sync: this.platform.hosted ? this.platform.syncLabel() : null,
       hasSnapshot: !!this.platform.loadSnapshot(),
+      canSignIn: this.platform.canSignIn(),
+      canInvite: !!this.platform.inviteLink(),
     });
   }
 
@@ -143,6 +157,7 @@ class App {
     this.ui.setCaptions(this.settings.captions);
     this.platform.setTelemetryConsent(this.settings.telemetry);
     this.stage.setReducedMotion(this.settings.reducedMotion);
+    this.ui.setKeyHints(this.settings.bindings);
     // Graphics apply live, but only when they changed (recompiles materials).
     const gfxKey = JSON.stringify(this.settings.gfx || {});
     if (gfxKey !== this._gfxKey) {
@@ -188,10 +203,11 @@ class App {
     document.addEventListener('keydown', (e) => {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      if (e.key === 'Escape') {
+      const is = (a) => (this.settings.bindings[a] || []).includes(e.code);
+      if (is('cancel')) {
         if (this.state === 'active') this.pauseGame('esc key');
         else if (this.state === 'paused') this.resumeGame('esc key');
-      } else if ((e.key === 'p' || e.key === 'P') && (this.state === 'active' || this.state === 'paused')) {
+      } else if (is('pause') && (this.state === 'active' || this.state === 'paused')) {
         this.state === 'active' ? this.pauseGame('p key') : this.resumeGame('p key');
       }
     });
@@ -245,7 +261,9 @@ class App {
       onTraySelect: (key) => this.tapPiece(key),
       onContextAction: (a) => this.contextAction(a),
       onDeleteScene: (id) => { this.platform.deleteScene(id); this.openScrapbook(); },
-      onResetBindings: () => { const d = defaultSettings(); this.settings.bindings = d.bindings; this.settings.gamepad = d.gamepad; this._applySettings(); this.openSettings(); },
+      onResetBindings: () => { const d = defaultSettings(); this.settings.bindings = d.bindings; this.settings.gamepad = d.gamepad; this.platform.resetBindings(); this._applySettings(); this.openSettings(); },
+      onSignIn: () => this.platform.signIn(),
+      onInvite: () => this.copyInvite(),
       onReplayTutorials: () => { this.progress.lessons = {}; this.platform.saveProgress(this.progress); this.goto('learn'); },
       onWipe: () => this.confirmWipe(),
       onTextMode: () => { this._textModeOn = true; this.ui.setMirrorVisible(true); this.ui.toast('Text mode: the whole house is playable from the panel and tray.'); },
@@ -464,7 +482,7 @@ class App {
     const legal = R.listLegalActions(st);
     const place = legal.find(a => a.type === 'place');
     const b = this.settings.bindings;
-    const key = (a) => (b[a] || ['?'])[0];
+    const key = (a) => codeLabel((b[a] || ['?'])[0]);
     this.ui.help({
       ruleCards: [
         { title: 'Make a home', text: 'Place characters and props from the tray into glowing spots. Every piece on the floor is part of the story.', example: place ? `place the ${sample.items[place.item].name} in the ${st.rooms.find(r => r.id === place.room).name}` : null },
@@ -479,7 +497,7 @@ class App {
           .map(([a, keys]) => [{
             confirm: 'Confirm / place', cancel: 'Cancel', pause: 'Pause', undo: 'Undo',
             hint: 'Hint', camera: 'Camera reset', mute: 'Mute',
-          }[a] || a, keys]),
+          }[a] || a, keys.map(codeLabel)]),
         ['Move cursor', ['Arrow keys', 'stick / dpad']],
         ['Cycle rooms', ['gamepad shoulder buttons']],
       ],
@@ -503,14 +521,34 @@ class App {
       } else {
         this.input.captureNextKey((keys) => {
           if (keys) {
-            this.settings.bindings[action] = keys;
+            // One action per key: steal the code from any other action.
+            const changed = { [action]: keys };
+            for (const [other, codes] of Object.entries(this.settings.bindings)) {
+              if (other !== action && codes.some(c => keys.includes(c))) {
+                changed[other] = codes.filter(c => !keys.includes(c));
+              }
+            }
+            Object.assign(this.settings.bindings, changed);
+            for (const [a, codes] of Object.entries(changed)) this.platform.saveBinding(a, codes);
             this._applySettings();
+            if (Object.keys(changed).length > 1) this.openSettings();
           }
           done(this.settings.bindings[action]);
         });
       }
     });
     this.ui.showScreen('settings');
+  }
+
+  async copyInvite() {
+    const url = this.platform.inviteLink();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.ui.toast(shText('copied'), 'good');
+    } catch {
+      this.ui.toast(shText('copyFail', { url }));
+    }
   }
 
   confirmWipe() {
@@ -1188,18 +1226,13 @@ class App {
       this.platform.submitScore(submission).then(async (r) => {
         const el = document.getElementById('results-compare');
         if (!el) return;
-        if (r?.entry) {
-          const board = await this.platform.leaderboard(this.mode === 'daily' ? 'daily' : 'global', { contentId: st.contentId });
-          const rank = board.entries.findIndex(e => e.sessionId === r.entry.sessionId) + 1;
-          const label = r.source === 'server' ? 'leaderboard'
-            : this.platform.hosted ? 'local best (platform leaderboards are read-only)'
-            : 'local board (casual — offline)';
-          el.textContent = rank > 0
-            ? `Placed #${rank} of ${board.entries.length} on the ${label}.`
-            : `Score saved to the ${label}.`;
-        } else {
-          el.textContent = `Score not submitted (${r?.error || 'offline'}) — saved locally instead.`;
-        }
+        const board = await this.platform.leaderboard(this.mode === 'daily' ? 'daily' : 'global', { contentId: st.contentId });
+        const rank = board.entries.findIndex(e => e.sessionId === r.entry.sessionId) + 1;
+        const label = this.platform.hosted ? 'local best (platform leaderboards are read-only)'
+          : 'local board (casual — offline)';
+        el.textContent = rank > 0
+          ? `Placed #${rank} of ${board.entries.length} on the ${label}.`
+          : `Score saved to the ${label}.`;
       });
     } else if (this.settings.timingAssist && this.session.content.ranked) {
       compareText = 'Timing assistance is on — this score is casual and was not submitted.';

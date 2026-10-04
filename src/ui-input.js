@@ -220,12 +220,12 @@ export class Input {
       e.preventDefault();
       const cap = this._captureRebind;
       this._captureRebind = null;
-      cap(e.key === 'Escape' ? null : [e.key]);
+      cap(e.code === 'Escape' || !e.code ? null : [e.code]);
       return;
     }
     if (!this.enabled || this.locked || !this.ctx) return;
     const b = this.ctx.bindings;
-    const is = (action) => (b[action] || []).includes(e.key);
+    const is = (action) => (b[action] || []).includes(e.code);
     const tag = document.activeElement?.tagName;
     const inField = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
     if (inField) return;
@@ -246,7 +246,7 @@ export class Input {
     if (is('hint')) { e.preventDefault(); this.h.onHint?.(); return; }
     if (is('camera')) { e.preventDefault(); this.stage.resetCamera(); return; }
     if (is('mute')) { e.preventDefault(); this.h.onMuteToggle?.(); return; }
-    if (e.key === 'Escape') {
+    if (is('cancel')) {
       if (this.ctx.selection) {
         e.preventDefault();
         e.stopImmediatePropagation(); // cancel the selection, do not also pause

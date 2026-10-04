@@ -3,6 +3,8 @@
 // separate from simulation state; closing a drawer can never affect a match.
 import { PIECE_ICONS } from './render/pieces.js';
 import { reasonText } from './rules.js';
+import { codeLabel } from './persist.js';
+import { shText } from './sh-i18n.js';
 import { ACHIEVEMENTS, THEMES, CHALLENGES, PRACTICE_DIFFICULTIES, LESSONS } from './content.js';
 
 const $ = (id) => document.getElementById(id);
@@ -25,6 +27,10 @@ export class UI {
       btn.addEventListener('click', () => this.h.onGoto(btn.dataset.goto));
     });
     $('btn-play').addEventListener('click', () => this.h.onPlay());
+    $('btn-signin').textContent = shText('signIn');
+    $('btn-invite').textContent = shText('invite');
+    $('btn-signin').addEventListener('click', () => this.h.onSignIn());
+    $('btn-invite').addEventListener('click', () => this.h.onInvite());
     $('btn-resume-session').addEventListener('click', () => this.h.onResumeSnapshot());
     $('btn-pause').addEventListener('click', () => this.h.onPauseToggle());
     $('btn-resume').addEventListener('click', () => this.h.onPauseToggle());
@@ -314,11 +320,19 @@ export class UI {
   }
 
   // --------------------------------------------------------------- title
-  setTitleInfo({ journeyDone, journeyTotal, dailyDone, profile, sync, hasSnapshot }) {
+  setTitleInfo({ journeyDone, journeyTotal, dailyDone, profile, sync, hasSnapshot, canSignIn = false, canInvite = false }) {
+    $('btn-signin').hidden = !canSignIn;
+    $('btn-invite').hidden = !canInvite;
     $('journey-sub').textContent = `${journeyDone} of ${journeyTotal} stages`;
     $('daily-sub').textContent = dailyDone ? 'Done today — see the board' : 'One shared house, today only';
     $('profile-badge').textContent = profile ? `Playing as ${profile.name}${sync ? ` · ${sync}` : ''}` : '';
     $('resume-line').hidden = !hasSnapshot;
+  }
+
+  /** Keyboard hint line under the canvas, from the effective bindings. */
+  setKeyHints(b) {
+    const k = (a) => (b[a] || []).map(codeLabel).join('/') || '—';
+    $('canvas-keys').textContent = `Arrows move the cursor · ${k('confirm')} select/place · ${k('cancel')} cancel · ${k('hint')} hint · ${k('undo')} undo · ${k('camera')} camera`;
   }
 
   // --------------------------------------------------------------- setup
@@ -577,10 +591,10 @@ export class UI {
       const a = document.createElement('span'); a.textContent = label;
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'menu-btn small';
-      btn.textContent = (settings.bindings[action] || []).join(' / ') || '—';
+      btn.textContent = (settings.bindings[action] || []).map(codeLabel).join(' / ') || '—';
       btn.addEventListener('click', () => {
         btn.textContent = 'press a key…';
-        onCapture(action, (keys) => { btn.textContent = keys.join(' / '); });
+        onCapture(action, (keys) => { btn.textContent = (keys || []).map(codeLabel).join(' / ') || '—'; });
       });
       div.append(a, btn);
       box.appendChild(div);

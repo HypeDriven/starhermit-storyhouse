@@ -16,8 +16,8 @@ test('settings: defaults are complete and valid', () => {
 test('settings: partial old documents gain missing keys', () => {
   const s = migrateSettings({ v: 1, music: 20, bindings: { hint: ['x'] } });
   assert.equal(s.music, 20);
-  assert.deepEqual(s.bindings.hint, ['x']);
-  assert.deepEqual(s.bindings.undo, ['u']); // filled from defaults
+  assert.deepEqual(s.bindings.hint, ['KeyX']); // legacy key value → code
+  assert.deepEqual(s.bindings.undo, ['KeyU']); // filled from defaults
   assert.equal(s.effects, 80);
   assert.equal(migrateSettings(null).v, 1);
 });
