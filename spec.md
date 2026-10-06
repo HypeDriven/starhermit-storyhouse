@@ -77,6 +77,8 @@ The Three.js canvas fills the game region but is never the only UI. Menus, text,
 - **Portrait mobile:** top safe-area status bar, square or perspective-fit playfield, bottom thumb-zone action tray, and sheet-based secondary panels. Never place critical controls under browser chrome or display cutouts.
 - **Landscape mobile:** reserve a narrow status rail; preserve at least 44×44 CSS-pixel targets and 8-pixel separation. Goals and Actions are both drawers below a compact top bar. Legal-slot rings sit exactly on their pick discs. Drawers close and hide whenever a screen (pause, help, results) opens. Orbit is bounded (yaw ±0.6 rad, pitch ≥ 0.5 rad) so walls never hide the rooms, and a View button in the top bar (C) resets the camera.
 - React to resize, orientation, device-pixel-ratio, safe-area insets, virtual keyboard, and visibility changes without losing input or restarting the round.
+- **Large screens (above 1600×1000):** the shared `ui-scale.js` sets `--ui-scale` (`min(w/1600, h/1000)`, max 2.5) and every DOM layer of the app (HUD, rails, tray, screens, overlays, toasts, text mirror) is zoomed by it while the full-viewport 3D canvas stays unzoomed, so 2K–4K and ultrawide monitors show the 1600×1000 layout magnified; the title menu centres vertically there.
+- The HUD (top bar, tray, rails) hides while a screen (results, settings, help) is open. Toasts sit above the tray, below modal overlays, and beside (desktop, landscape) or above (portrait) an open drawer or text mirror; the text mirror sits above the tray. On landscape phones drawers start below the two-row top bar and keep their toggle on top, so a toggle always closes its drawer.
 
 ### Screens and overlays
 

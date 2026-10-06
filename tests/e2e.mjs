@@ -266,7 +266,9 @@ async function runPass(browser, name, ctxOpts, { full }) {
       await page.screenshot({ path: SHOT('beat', name) });
       ok(`${name}: placed ${pair.char}+${pair.prop} in the ${room0.name} and recorded a story moment`);
 
-      // undo (the interact) through the visible Undo button, then re-record
+      // undo (the interact) through the visible Undo button, then re-record.
+      // Undo is ignored during the 260ms beat-resolution lock; wait it out.
+      await page.waitForFunction(() => !window.storyhouse._resolving, null, { timeout: 4000 });
       await page.click('#btn-undo');
       await page.waitForFunction(() => {
         const s = window.storyhouse?.session?.state; if (!s) return false;

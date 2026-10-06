@@ -19,6 +19,18 @@ export class UI {
     this._captionsOn = false;
     this._captionTimer = 0;
     this._bind();
+    this._trackTrayHeight();
+  }
+
+  // Toasts and the portrait text mirror sit above the bottom tray, whose
+  // height changes as it wraps; expose it (layout px) as --tray-h.
+  _trackTrayHeight() {
+    const tray = $('tray');
+    if (!tray || typeof ResizeObserver !== 'function') return;
+    const app = $('app');
+    const set = () => app.style.setProperty('--tray-h', `${tray.offsetHeight}px`);
+    new ResizeObserver(set).observe(tray);
+    set();
   }
 
   // ------------------------------------------------------------- wiring
@@ -125,6 +137,7 @@ export class UI {
       const el = $(`screen-${name}`);
       if (el) {
         el.hidden = false;
+        el.scrollTop = 0;
         const focusable = el.querySelector('button, [href], input, select, [tabindex]');
         this._lastFocus = document.activeElement;
         focusable?.focus({ preventScroll: true });
@@ -265,7 +278,11 @@ export class UI {
     // Context actions
     $('selection-desc').textContent = v.selectionDesc;
     const ctx = $('context-actions');
-    this._rebuildKeepingFocus(ctx, () => {
+    // The HUD refreshes every second (clock); rebuild the buttons only when the
+    // actions change, so a click is never lost to a re-created button.
+    const ctxKey = JSON.stringify(v.contextActions.map((a) => [a.kind, a.item, a.room, a.a, a.b, a.label]));
+    if (ctxKey !== this._ctxKey || ctx.childElementCount !== v.contextActions.length) this._rebuildKeepingFocus(ctx, () => {
+      this._ctxKey = ctxKey;
       ctx.textContent = '';
       for (const a of v.contextActions) {
         const btn = document.createElement('button');

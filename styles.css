@@ -200,8 +200,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .screen > * { width: min(680px, 100%); }
 .screen[hidden] { display: none; }
 
-.title-block { text-align: center; margin-block-start: 4vh; }
-#title-heading { font-size: clamp(2.6em, 8vw, 4.4em); letter-spacing: 0.02em; margin: 0; }
+.title-block { text-align: center; margin-block-start: calc(4vh / var(--ui-scale, 1)); }
+#title-heading { font-size: clamp(2.6em, calc(8vw / var(--ui-scale, 1)), 4.4em); letter-spacing: 0.02em; margin: 0; }
 .tagline { color: var(--ink-dim); }
 .title-nav { display: grid; gap: 14px; justify-items: center; }
 .title-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; width: 100%; }
@@ -322,18 +322,18 @@ body.has-backdrop #screen-title {
   padding: 22px 26px; box-shadow: var(--shadow); width: min(430px, 100%);
 }
 .countdown-text {
-  font-size: clamp(3em, 14vw, 7em); font-weight: 800; color: var(--brand);
+  font-size: clamp(3em, calc(14vw / var(--ui-scale, 1)), 7em); font-weight: 800; color: var(--brand);
   text-shadow: 0 4px 30px rgba(0,0,0,0.5);
 }
 
 #toast-region {
-  position: absolute; inset-block-end: calc(86px + var(--sab)); inset-inline: 0;
-  display: grid; justify-items: center; gap: 6px; pointer-events: none; z-index: 40;
+  position: absolute; inset-block-end: calc(max(86px, var(--tray-h, 0px) + 22px) + var(--sab)); inset-inline: 0;
+  display: grid; justify-items: center; gap: 6px; pointer-events: none; z-index: 29;
 }
 .toast {
-  background: var(--paper-2); border: 1px solid var(--line); border-radius: 999px;
+  background: var(--paper-2); border: 1px solid var(--line); border-radius: 1.2em;
   padding: 8px 18px; box-shadow: var(--shadow); animation: toast-in 0.25s ease-out;
-  max-width: min(90vw, 520px); text-align: center;
+  max-width: min(calc(90vw / var(--ui-scale, 1)), 520px); text-align: center;
 }
 .toast.bad { border-color: var(--bad); }
 .toast.good { border-color: var(--good); }
@@ -342,15 +342,19 @@ body.has-backdrop #screen-title {
 #captions {
   position: absolute; inset-block-end: calc(8px + var(--sab)); inset-inline-start: calc(8px + var(--sal));
   background: rgba(10, 6, 16, 0.75); border-radius: 8px; padding: 4px 12px;
-  font-size: 0.85em; z-index: 25; pointer-events: none; max-width: 60vw;
+  font-size: 0.85em; z-index: 25; pointer-events: none; max-width: calc(60vw / var(--ui-scale, 1));
 }
 
 #a11y-mirror {
   position: absolute; inset-block-end: calc(8px + var(--sab)); inset-inline-end: calc(8px + var(--sas));
-  width: min(340px, 92vw); max-height: 46vh; overflow-y: auto; z-index: 20;
+  width: min(340px, calc(92vw / var(--ui-scale, 1))); max-height: calc(46vh / var(--ui-scale, 1)); overflow-y: auto; z-index: 20;
   background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px;
 }
 #a11y-mirror h3 { margin-block-start: 6px; }
+/* While the text mirror is open, toasts centre in the space left of it and
+   the canvas key hint (which sits where the mirror is) is hidden. */
+#app:has(#a11y-mirror:not([hidden])) #toast-region { inset-inline-end: calc(min(340px, calc(92vw / var(--ui-scale, 1))) + 16px + var(--sas)); }
+#app:has(#a11y-mirror:not([hidden])) #canvas-keys { visibility: hidden; }
 #a11y-mirror ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 #a11y-mirror button { width: 100%; text-align: start; background: var(--paper-3); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 40px; }
 #a11y-mirror button[aria-current="true"] { border-color: var(--brand); }
@@ -359,6 +363,7 @@ body.has-backdrop #screen-title {
 #compat-message[hidden] { display: none; }
 
 /* Gameplay rails and their toggles are inert while any screen is open. */
+body.screen-open #hud { visibility: hidden; }
 body.screen-open #rail-left, body.screen-open #rail-right, body.screen-open .drawer-toggle { visibility: hidden; pointer-events: none; }
 
 /* ============================ BREAKPOINTS ============================ */
@@ -370,7 +375,7 @@ body.screen-open #rail-left, body.screen-open #rail-right, body.screen-open .dra
   }
   #rail-left, #rail-right {
     position: absolute; inset-block-start: calc(42% + 56px); inset-inline-start: calc(8px + var(--sal));
-    width: min(320px, 86vw); max-height: 48vh; z-index: 15;
+    width: min(320px, calc(86vw / var(--ui-scale, 1))); max-height: calc(48vh / var(--ui-scale, 1)); z-index: 15;
     transform: translateX(-115%);
     visibility: hidden;
     transition: transform 0.25s ease-out, visibility 0s 0.25s;
@@ -389,6 +394,9 @@ body.screen-open #rail-left, body.screen-open #rail-right, body.screen-open .dra
     padding: 6px 14px; min-height: 44px;
   }
   #drawer-right-toggle { inset-inline-start: auto; inset-inline-end: calc(8px + var(--sas)); }
+  /* toasts centre in the space an open drawer leaves */
+  #app:has(#rail-left.open) #toast-region { inset-inline-start: calc(min(320px, calc(86vw / var(--ui-scale, 1))) + 16px + var(--sal)); }
+  #app:has(#rail-right.open) #toast-region { inset-inline-end: calc(min(320px, calc(86vw / var(--ui-scale, 1))) + 16px + var(--sas)); }
 }
 
 /* Portrait mobile: status bar on top, square playfield, thumb tray below. */
@@ -403,6 +411,15 @@ body.screen-open #rail-left, body.screen-open #rail-right, body.screen-open .dra
   .tray-item { min-width: 48px; min-height: 48px; }
   #canvas-keys { display: none !important; }
   .title-grid { grid-template-columns: 1fr 1fr; }
+  /* text mirror: between the drawer toggles and the tray; toasts go above
+     the toggles while it is open */
+  #a11y-mirror {
+    inset-block-end: calc(var(--tray-h, 62px) + 16px + var(--sab));
+    max-height: calc(58% - 60px - var(--tray-h, 62px) - var(--sab));
+  }
+  #app:has(#a11y-mirror:not([hidden])) #toast-region,
+  #app:has(#rail-left.open) #toast-region,
+  #app:has(#rail-right.open) #toast-region { inset-block-end: calc(58% + 8px); inset-inline: 0; }
 }
 
 /* Landscape mobile: narrow status rail, ≥44px targets with 8px separation. */
@@ -416,15 +433,28 @@ body.screen-open #rail-left, body.screen-open #rail-right, body.screen-open .dra
   .chip-btn .btn-label { display: none; }
   .chip-btn { padding: 4px 10px; }
   #hud-objective-text { font-size: 0.78em; }
-  /* goals stay reachable as a drawer (was display:none, which left the Goals
+  /* drawers and toggles start below the two-row status bar; goals stay reachable as a drawer (was display:none, which left the Goals
      toggle doing nothing) */
-  #rail-left { inset-block-start: calc(96px + var(--sat)); max-height: calc(100% - 180px); width: min(300px, 60vw); }
-  #drawer-left-toggle { inset-block-start: calc(96px + var(--sat)); }
-  #rail-right { inset-block-start: calc(96px + var(--sat)); max-height: calc(100% - 180px); }
-  #drawer-right-toggle { inset-block-start: calc(96px + var(--sat)); }
+  #rail-left { inset-block-start: calc(116px + var(--sat)); max-height: calc(100% - 200px); width: min(300px, calc(60vw / var(--ui-scale, 1))); }
+  #drawer-left-toggle { inset-block-start: calc(116px + var(--sat)); }
+  #rail-right { inset-block-start: calc(116px + var(--sat)); max-height: calc(100% - 200px); }
+  #drawer-right-toggle { inset-block-start: calc(116px + var(--sat)); }
   .tray-item { min-width: 44px; min-height: 44px; margin: 4px; }
   .chip-btn, .menu-btn, .text-btn, .primary-btn { min-height: 44px; }
   .beat-log { display: none; }
+  /* the open drawer starts at its toggle's top: keep the toggle above it
+     (so it can close the drawer) and pad the drawer's content below it */
+  #rail-left, #rail-right { padding-block-start: 56px; }
+  /* position against the HUD box like its toggle, not the 'right' grid area
+     (whose short row left the Actions drawer with no room for its content) */
+  #rail-right { grid-area: auto; }
+  /* text mirror: below the Actions toggle, above the tray */
+  #a11y-mirror {
+    inset-block-start: calc(168px + var(--sat));
+    inset-block-end: calc(var(--tray-h, 62px) + 16px + var(--sab));
+    max-height: none;
+  }
+  .drawer-toggle[aria-expanded="true"] { z-index: 16; }
 }
 
 @media (min-width: 1024px) {
@@ -443,3 +473,10 @@ html.reduced-motion #rail-left, html.reduced-motion #rail-right { transition: no
 @media (max-width: 400px) {
   .title-grid { grid-template-columns: 1fr; }
 }
+
+/* Large screens: ui-scale.js sets --ui-scale (1 up to 1600x1000). Every DOM
+   layer of #app except the full-viewport canvas is zoomed once (vw/vh lengths
+   above are divided by it); the canvas stays unzoomed. */
+#app > :not(#gl), #fps-meter { zoom: var(--ui-scale, 1); }
+/* above 1600x1000 the title menu centres vertically instead of hugging the top */
+html.ui-scaled #screen-title { align-content: center; }
