@@ -365,6 +365,7 @@ body.has-backdrop #screen-title {
 /* Gameplay rails and their toggles are inert while any screen is open. */
 body.screen-open #hud { visibility: hidden; }
 body.screen-open #rail-left, body.screen-open #rail-right, body.screen-open .drawer-toggle { visibility: hidden; pointer-events: none; }
+body.screen-open #a11y-mirror { visibility: hidden; pointer-events: none; }
 
 /* ============================ BREAKPOINTS ============================ */
 /* Compact desktop / tablet: rails collapse into drawers. */
