@@ -1209,7 +1209,7 @@ class App {
     let compareText = '';
     const ranked = this.session.content.ranked && !this.settings.timingAssist;
     if (ranked) {
-      compareText = this.platform.hosted ? 'Saving your result…' : 'Submitting to the leaderboard…';
+      compareText = this.platform.hosted ? shText('lbPosting') : 'Submitting to the leaderboard…';
       const submission = {
         mode: this.mode, contentId: st.contentId, seed: st.seed,
         ruleset: R.RULESET_VERSION, contentVersion: C.CONTENT_VERSION,
@@ -1223,13 +1223,21 @@ class App {
         settings: { difficulty: this.mode === 'practice' ? this.setup?.difficulty : undefined },
         score: { total: score.total, components: { moments: score.moments, discoveries: score.discoveries, coverage: score.coverage, variety: score.variety, timeBonus: score.timeBonus }, cardsDone: score.cardsDone, invalid: score.invalid, elapsedMs: score.elapsedMs, stars: score.stars },
       };
+      const session = this.session;
+      if (this.platform.hosted) {
+        this.platform.postScore(score.total).then((r) => {
+          const el = document.getElementById('results-compare');
+          if (!el || this.session !== session) return;
+          el.textContent = !r.posted ? shText('lbNotPosted')
+            : r.rank ? shText('lbRank', { rank: r.rank }) : shText('lbPosted');
+        });
+      }
       this.platform.submitScore(submission).then(async (r) => {
         const el = document.getElementById('results-compare');
-        if (!el) return;
+        if (!el || this.platform.hosted) return; // hosted: the line shows the platform rank
         const board = await this.platform.leaderboard(this.mode === 'daily' ? 'daily' : 'global', { contentId: st.contentId });
         const rank = board.entries.findIndex(e => e.sessionId === r.entry.sessionId) + 1;
-        const label = this.platform.hosted ? 'local best (platform leaderboards are read-only)'
-          : 'local board (casual — offline)';
+        const label = 'local board (casual — offline)';
         el.textContent = rank > 0
           ? `Placed #${rank} of ${board.entries.length} on the ${label}.`
           : `Score saved to the ${label}.`;
