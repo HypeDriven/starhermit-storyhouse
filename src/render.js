@@ -369,13 +369,13 @@ export class Stage {
       this._buildPost(w, h);
     }
     if (this.composer) {
-      try { this.composer.render(dtSec); return; } catch {
+      try { (globalThis.GameOptions ? globalThis.GameOptions.draw(this.composer.renderer, () => this.composer.render(dtSec)) : this.composer.render(dtSec)); return; } catch {
         this.postFailed = true;
         this.composer = null;
         this.hooks.onGraphicsInfo?.();
       }
     }
-    this.renderer.render(this.scene, this.rig.camera);
+    (globalThis.GameOptions ? globalThis.GameOptions.draw(this.renderer, () => this.renderer.render(this.scene, this.rig.camera)) : this.renderer.render(this.scene, this.rig.camera));
   }
 
   /** Title-screen backdrop: a furnished house with a slow, gentle camera sway. */
@@ -884,7 +884,7 @@ export class Stage {
   }
 
   captureThumbnail() {
-    this.renderer.render(this.scene, this.rig.camera);
+    (globalThis.GameOptions ? globalThis.GameOptions.draw(this.renderer, () => this.renderer.render(this.scene, this.rig.camera)) : this.renderer.render(this.scene, this.rig.camera));
     const src = this.renderer.domElement;
     const c = document.createElement('canvas');
     c.width = 168; c.height = 112;

@@ -57,7 +57,7 @@ export class AudioEngine {
     for (const bus of ['music', 'effects', 'ambience', 'voice']) {
       const g = this.ctx.createGain();
       g.connect(master);
-      this.buses[bus] = g;
+      this.buses[bus] = (globalThis.GameOptions ? globalThis.GameOptions.tagBus(g, bus) : g);
       g.gain.value = this._gain(this.volumes[bus]);
     }
     this._applyMute();
@@ -102,7 +102,7 @@ export class AudioEngine {
     files.forEach((file, i) => {
       const buf = this._sampleBuffer(file);
       if (!buf) return;
-      const src = this.ctx.createBufferSource();
+      const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createBufferSource(), name) : this.ctx.createBufferSource());
       src.buffer = buf;
       src.connect(this.buses.effects);
       src.start(this.ctx.currentTime + at + i * 0.12);
@@ -126,7 +126,7 @@ export class AudioEngine {
 
   // ------------------------------------------------------------------ synth
   _osc(type, freq, t0) {
-    const o = this.ctx.createOscillator();
+    const o = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createOscillator(), null) : this.ctx.createOscillator());
     o.type = type; o.frequency.setValueAtTime(freq, t0);
     return o;
   }
@@ -153,7 +153,7 @@ export class AudioEngine {
   _noise(bus, { f0 = 800, q = 1, a = 0.003, d = 0.12, peak = 0.4, at = 0, type = 'bandpass' } = {}) {
     if (!this.ctx) return;
     const t0 = this.ctx.currentTime + at;
-    const src = this.ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createBufferSource(), bus) : this.ctx.createBufferSource());
     src.buffer = this._noiseBuf;
     src.playbackRate.value = 0.8 + Math.random() * 0.4;
     const f = this.ctx.createBiquadFilter();
@@ -302,11 +302,11 @@ export class AudioEngine {
     if (!this.ctx || this._ambTimer) return;
     const kind = this.theme?.ambience ?? 'wind';
     // Base bed: soft filtered noise shaped per kind.
-    const src = this.ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createBufferSource(), null) : this.ctx.createBufferSource());
     src.buffer = this._noiseBuf; src.loop = true;
     const f = this.ctx.createBiquadFilter();
     const g = this.ctx.createGain();
-    const lfo = this.ctx.createOscillator();
+    const lfo = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createOscillator(), null) : this.ctx.createOscillator());
     const lfoG = this.ctx.createGain();
     const cfg = {
       birds:    { type: 'lowpass', f0: 500, gain: 0.05, lfoF: 0.1, lfoD: 60 },
