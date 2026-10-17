@@ -3,7 +3,7 @@
 // settings KV, controls, invite link and read-only leaderboards. Without a
 // token every platform call is a no-op and nothing touches the network (the
 // game never calls its own server routes, on any host). Tokens live in memory only — never in local storage.
-import { defaultSettings, migrateSettings, defaultProgress, migrateProgress, sealProgress, verifyProgress, PROGRESS_VERSION } from './persist.js';
+import { defaultSettings, migrateSettings, defaultProgress, migrateProgress, sealProgress, verifyProgress, mergeProgress, mergeScenes, PROGRESS_VERSION } from './persist.js';
 
 const LS = {
   settings: 'storyhouse.settings.v1',
@@ -42,6 +42,9 @@ export class Platform {
         this.onAuthChange?.(a);
       });
       this.sh.on('saved', (ok) => this._setSyncState(ok ? 'synced' : 'error'));
+      // Another device saved since our last load: the SDK refused the write and
+      // blocks further ones until a reload. Reload, merge, and save the merge.
+      this.sh.on('saveconflict', () => { this.resolveConflict(); });
     }
     if (this.hosted) this._bindCloudFlush();
     return this;
@@ -144,7 +147,8 @@ export class Platform {
 
   // ----------------------------------------------------------- cloud save
   // One platform slot (game:<slug>, via the SDK) holding {v:2, progress,
-  // scenes}. localStorage stays the offline cache; remote wins on start.
+  // scenes}. localStorage stays the offline cache; on start and after a save
+  // conflict the cloud doc is merged with the local one (mergeProgress).
   syncLabel() {
     return { saving: 'saving…', synced: 'cloud synced', offline: 'offline', error: 'sync error' }[this.syncState] || '';
   }
@@ -180,19 +184,39 @@ export class Platform {
     if (doc.v === 2 && verifyProgress(doc.progress)) return doc;
     return verifyProgress(doc) ? { v: 2, progress: doc, scenes: null } : null;
   }
-  // Remote wins when both exist; localStorage remains the offline cache.
-  adoptRemoteProgress(remote) {
+  /**
+   * Merge the cloud doc into the local cache (progress via mergeProgress,
+   * scenes by id) — neither device's progress is dropped. Returns true when the
+   * local copy changed; uploads the merge when the cloud lacked anything local.
+   */
+  adoptRemoteProgress(remote, { afterConflict = false } = {}) {
     const doc = remote && remote.v === 2 ? remote : { progress: remote, scenes: null };
-    if (!verifyProgress(doc.progress)) return false;
-    let changed = false;
-    if (Array.isArray(doc.scenes) && JSON.stringify(doc.scenes) !== JSON.stringify(this.loadScenes())) {
-      try { localStorage.setItem(LS.scenes, JSON.stringify(doc.scenes)); changed = true; } catch {}
-    }
-    let local = null;
-    try { local = JSON.parse(localStorage.getItem(LS.progress) || 'null'); } catch {}
-    if (local && JSON.stringify(local) === JSON.stringify(doc.progress)) return changed;
-    try { localStorage.setItem(LS.progress, JSON.stringify(doc.progress)); } catch {}
-    return true;
+    const remoteProgress = verifyProgress(doc.progress) ? doc.progress : null;
+    if (!remoteProgress && !afterConflict) return false;
+    const localScenes = this.loadScenes();
+    const remoteScenes = Array.isArray(doc.scenes) ? doc.scenes : [];
+    const scenes = mergeScenes(remoteScenes, localScenes);
+    const local = this.loadProgress();
+    const merged = sealProgress(mergeProgress(remoteProgress, local));
+    const localChanged = JSON.stringify(merged) !== JSON.stringify(sealProgress(mergeProgress(null, local))) ||
+      JSON.stringify(scenes) !== JSON.stringify(localScenes);
+    const cloudBehind = !remoteProgress ||
+      JSON.stringify(merged) !== JSON.stringify(sealProgress(mergeProgress(remoteProgress, null))) ||
+      JSON.stringify(scenes) !== JSON.stringify(mergeScenes(remoteScenes, []));
+    try { localStorage.setItem(LS.scenes, JSON.stringify(scenes)); } catch {}
+    try { localStorage.setItem(LS.progress, JSON.stringify(merged)); } catch {}
+    if ((cloudBehind || afterConflict) && this.hosted && !this.sh.saveConflicted?.()) this._queueCloudSave(merged);
+    return localChanged;
+  }
+
+  /** saveconflict: reload the cloud doc, merge it with this device's and save the merge. */
+  async resolveConflict() {
+    if (!this.hosted) return;
+    const doc = await this.sh.loadJSON().catch(() => null);
+    if (this.sh.saveConflicted?.() || this.sh.saveLoadFailed?.()) { this._setSyncState('error'); return; }
+    const remote = doc && doc.v === 2 ? doc : (doc ? { v: 2, progress: doc, scenes: null } : { v: 2, progress: null, scenes: null });
+    this.adoptRemoteProgress(remote, { afterConflict: true });
+    this.onConflictMerged?.();
   }
 
   // --------------------------------------------------------------- scores

@@ -16,6 +16,7 @@
 <script src="ui-scale.js"></script>
 <script src="browser-guard.js"></script>
 <script src="starhermit-sdk.js"></script>
+<script src="sh-language.js"></script>
 </head>
 <body>
 <div id="app">
@@ -25,7 +26,7 @@
   <div id="hud" hidden>
     <header id="hud-top">
       <div id="hud-heading">
-        <h2 id="hud-stage-title">Stage</h2>
+        <h2 id="hud-stage-title" data-i18n-skip>Stage</h2>
         <p id="hud-objective-text" role="status"></p>
       </div>
       <div id="hud-status" role="status" aria-label="Round status">
@@ -65,21 +66,21 @@
     </aside>
 
     <div id="tray" role="toolbar" aria-label="Piece tray" aria-orientation="horizontal"></div>
-    <p id="canvas-keys" class="fine-print">Arrows move the cursor · Enter select/place · Esc cancel · H hint · U undo · C camera</p>
+    <p id="canvas-keys" class="fine-print" data-i18n-skip>Arrows move the cursor · Enter select/place · Esc cancel · H hint · U undo · C camera</p>
   </div>
 
   <!-- ============================== SCREENS ============================== -->
   <main id="screens">
     <section id="screen-title" class="screen" aria-labelledby="title-heading" hidden>
       <div class="title-block">
-        <h1 id="title-heading">Storyhouse</h1>
+        <h1 id="title-heading" data-i18n-skip>Storyhouse</h1>
         <p class="tagline">A little house full of almost-stories. Place the pieces, make the moments, keep the scenes.</p>
       </div>
       <nav class="title-nav" aria-label="Main menu">
         <button id="btn-play" class="primary-btn big" type="button">Play</button>
         <div class="title-grid">
           <button class="menu-btn" type="button" data-goto="daily">Daily Story<p class="menu-sub" id="daily-sub">One shared house, today only</p></button>
-          <button class="menu-btn" type="button" data-goto="journey">Journey<p class="menu-sub" id="journey-sub">45 stages</p></button>
+          <button class="menu-btn" type="button" data-goto="journey">Journey<p class="menu-sub" id="journey-sub" data-i18n-skip>45 stages</p></button>
           <button class="menu-btn" type="button" data-goto="learn">Learn<p class="menu-sub">Six little lessons</p></button>
           <button class="menu-btn" type="button" data-goto="practice">Practice<p class="menu-sub">Your house, your pace</p></button>
           <button class="menu-btn" type="button" data-goto="challenge">Challenge<p class="menu-sub">Limits and clocks</p></button>
@@ -90,15 +91,15 @@
         <button class="text-btn" type="button" data-goto="scrapbook">Scrapbook</button>
         <button class="text-btn" type="button" data-goto="help">How to play</button>
         <button class="text-btn" type="button" data-goto="settings">Settings</button>
-        <button id="btn-signin" class="text-btn" type="button" hidden>Sign in with StarHermit</button>
-        <button id="btn-invite" class="text-btn" type="button" hidden>Invite a friend</button>
+        <button id="btn-signin" class="text-btn" type="button" hidden data-i18n-skip>Sign in with StarHermit</button>
+        <button id="btn-invite" class="text-btn" type="button" hidden data-i18n-skip>Invite a friend</button>
         <span id="profile-badge" class="profile-badge"></span>
       </div>
       <p id="resume-line" class="resume-line" hidden><button id="btn-resume-session" class="text-btn" type="button">Continue your paused story →</button></p>
     </section>
 
     <section id="screen-setup" class="screen" aria-labelledby="setup-heading" hidden>
-      <h1 id="setup-heading">Mode</h1>
+      <h1 id="setup-heading" data-i18n-skip>Mode</h1>
       <div id="setup-body" class="setup-body"></div>
       <div class="row-btn">
         <button id="btn-setup-start" class="primary-btn big" type="button">Start</button>

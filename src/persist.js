@@ -127,6 +127,51 @@ export function verifyProgress(doc) {
   return doc && typeof doc === 'object' && doc.checksum === checksumDoc(doc);
 }
 
+/**
+ * Merge two progress docs without dropping either side: journey records keep
+ * the more stars and the higher score, best scores the higher value, lessons,
+ * collected cards, seen beats and played days are unioned, achievements keep
+ * the earliest unlock, the later daily result wins and the scene count takes
+ * the larger value. Either side may be null. The result is unsealed.
+ */
+export function mergeProgress(a, b) {
+  const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  const A = { ...defaultProgress(), ...obj(a) }, B = { ...defaultProgress(), ...obj(b) };
+  const journey = { ...obj(A.journey) };
+  for (const [k, v] of Object.entries(obj(B.journey))) {
+    const cur = journey[k];
+    journey[k] = cur ? { stars: Math.max(cur.stars || 0, v?.stars || 0), score: Math.max(cur.score || 0, v?.score || 0) } : v;
+  }
+  const bestScores = { ...obj(A.bestScores) };
+  for (const [k, v] of Object.entries(obj(B.bestScores))) if (!(Number(bestScores[k]) >= Number(v))) bestScores[k] = v;
+  const achievements = { ...obj(A.achievements) };
+  for (const [k, v] of Object.entries(obj(B.achievements))) if (!achievements[k] || (v && v < achievements[k])) achievements[k] = v;
+  const union = (x, y) => [...new Set([...arr(x), ...arr(y)])];
+  const la = A.lastDaily, lb = B.lastDaily;
+  const lastDaily = !la ? (lb || null) : !lb ? la
+    : (lb.date > la.date || (lb.date === la.date && (lb.total || 0) > (la.total || 0))) ? lb : la;
+  const merged = {
+    ...A, ...B,
+    v: PROGRESS_VERSION,
+    journey, bestScores, achievements, lastDaily,
+    lessons: { ...obj(A.lessons), ...obj(B.lessons) },
+    cardsCollected: union(A.cardsCollected, B.cardsCollected),
+    beatsSeen: union(A.beatsSeen, B.beatsSeen),
+    daysPlayed: union(A.daysPlayed, B.daysPlayed).sort(),
+    scenesCount: Math.max(Number(A.scenesCount) || 0, Number(B.scenesCount) || 0),
+  };
+  delete merged.checksum;
+  return merged;
+}
+
+/** Union of two scrapbooks by scene id, newest first, capped like saveScene. */
+export function mergeScenes(a, b, cap = 30) {
+  const seen = new Map();
+  for (const s of [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]) if (s && s.id && !seen.has(s.id)) seen.set(s.id, s);
+  return [...seen.values()].sort((x, y) => (y.savedAt || 0) - (x.savedAt || 0)).slice(0, cap);
+}
+
 export function migrateProgress(raw) {
   if (!raw || typeof raw !== 'object') return defaultProgress();
   const def = defaultProgress();

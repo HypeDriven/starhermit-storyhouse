@@ -8,13 +8,22 @@ import { gfxStrings, fmt } from './gfx-i18n.js';
 export class GraphicsPanel {
   /**
    * @param {HTMLElement} root   container inside the Graphics fieldset
-   * @param {{get:()=>object, set:(gfx:object)=>void, info:(words:object)=>object|null, lang?:string}} api
+   * @param {{get:()=>object, set:(gfx:object)=>void, info:(words:object)=>object|null, lang?:()=>string}} api
    */
   constructor(root, api) {
     this.root = root;
     this.api = api;
-    this.t = gfxStrings(api.lang || (typeof navigator !== 'undefined' ? navigator.language : 'en-US'));
+    this.t = gfxStrings(api.lang ? api.lang() : 'en-US');
     this._build();
+  }
+
+  /** Follow a game-language change: rebuild this panel's own box in place. */
+  setLang() {
+    const focusId = this.root.contains(document.activeElement) ? document.activeElement.id : null;
+    this.t = gfxStrings(this.api.lang ? this.api.lang() : 'en-US');
+    this._build();
+    this.sync();
+    if (focusId) document.getElementById(focusId)?.focus();
   }
 
   _build() {

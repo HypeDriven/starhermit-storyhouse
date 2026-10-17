@@ -15,6 +15,8 @@ import { GraphicsPanel } from './gfx-panel.js';
 import * as R from './rules.js';
 import * as C from './content.js';
 import { RngStream, deriveSeed } from './rng.js';
+import { T, onLanguage, currentLang } from './i18n.js';
+import { itemName, roomName, roomTypeName, beatLabel, layoutLabel, themeLabel, cardTitle, cardText, contentLabel, contentBlurb } from './loc.js';
 
 const VERSIONS = { build: BUILD, contentVersion: C.CONTENT_VERSION, ruleset: R.RULESET_VERSION };
 
@@ -69,8 +71,8 @@ class App {
     if (Stage.webglAvailable()) {
       this.stage = new Stage(document.getElementById('gl'), {
         onGraphicsInfo: () => this.gfxPanel?.sync(),
-        onContextLost: () => this.ui.toast('Graphics context lost — rebuilding…', 'bad'),
-        onContextRestored: () => this.ui.toast('Graphics restored.'),
+        onContextLost: () => this.ui.toast(T('Graphics context lost — rebuilding…'), 'bad'),
+        onContextRestored: () => this.ui.toast(T('Graphics restored.')),
       });
       if (!this.stage.init()) this.stage = null;
     }
@@ -84,16 +86,21 @@ class App {
       get: () => this.settings.gfx,
       set: (gfx) => this._applySettings({ gfx }),
       info: (words) => this.stage.graphicsInfo(words),
+      lang: () => currentLang(),
     });
     this._applySettings();
     this._bindGlobalKeys();
     this._bindLifecycle();
     this._refreshTitle();
+    // Language change (Settings → Language): redraw everything built in code in place.
+    onLanguage(() => this.relocalize());
+    // Another device saved first: the platform merged its cloud doc into ours.
+    this.platform.onConflictMerged = () => { this.progress = this.platform.loadProgress(); this._refreshTitle(); };
     this._transition('title', 'boot complete');
 
-    // Identity in the background: title → profile-ready, then adopt the
-    // cloud save (remote wins; localStorage stays the offline cache), the
-    // platform-stored preferences and the player's control bindings.
+    // Identity in the background: title → profile-ready, then merge the
+    // cloud save with this device's (localStorage stays the offline cache),
+    // the platform-stored preferences and the player's control bindings.
     this.platform.ensureProfile().then(async () => {
       const [prefs, bindings] = await Promise.all([
         this.platform.loadPlatformSettings(this.settings),
@@ -104,7 +111,7 @@ class App {
       const remote = await this.platform.loadCloudSave();
       if (remote && this.platform.adoptRemoteProgress(remote)) {
         this.progress = this.platform.loadProgress();
-        this.ui.toast('Cloud save restored to this device.');
+        this.ui.toast(T('Cloud save restored to this device.'));
       }
       this._refreshTitle();
       this._transition('profile-ready', 'identity resolved');
@@ -230,7 +237,7 @@ class App {
           this.stage.setRunning(true);
           if (this._awayAt && !this._awayToastShown) {
             const mins = Math.round((Date.now() - this._awayAt) / 60000);
-            this.ui.toast(`Welcome back — paused while you were away${mins >= 1 ? ` for about ${mins} min` : ''}. Nothing moved without you.`);
+            this.ui.toast(mins >= 1 ? T('Welcome back — paused while you were away for about {n} min. Nothing moved without you.', { n: mins }) : T('Welcome back — paused while you were away. Nothing moved without you.'));
             this._awayToastShown = true;
           }
           this._awayAt = null;
@@ -266,7 +273,7 @@ class App {
       onInvite: () => this.copyInvite(),
       onReplayTutorials: () => { this.progress.lessons = {}; this.platform.saveProgress(this.progress); this.goto('learn'); },
       onWipe: () => this.confirmWipe(),
-      onTextMode: () => { this._textModeOn = true; this.ui.setMirrorVisible(true); this.ui.toast('Text mode: the whole house is playable from the panel and tray.'); },
+      onTextMode: () => { this._textModeOn = true; this.ui.setMirrorVisible(true); this.ui.toast(T('Text mode: the whole house is playable from the panel and tray.')); },
       onToggleMirror: () => { this._textModeOn = !this._textModeOn; this.ui.setMirrorVisible(this._textModeOn); },
       onSound: (name) => this.audio.sfx(name),
     };
@@ -318,21 +325,29 @@ class App {
     fields.style.display = 'grid';
     fields.style.gap = '8px';
     const today = this.platform.utcToday();
+    // Field labels and option texts keep their English key (data-key) so a
+    // language change can relabel them without rebuilding the fields.
     const mk = (label, input) => {
       const l = document.createElement('label');
       l.style.display = 'flex'; l.style.justifyContent = 'space-between'; l.style.alignItems = 'center'; l.style.gap = '10px';
-      const s = document.createElement('span'); s.textContent = label;
+      const s = document.createElement('span'); s.dataset.key = label; s.textContent = T(label);
       l.append(s, input);
       return l;
     };
     const select = (opts, val) => {
       const s = document.createElement('select');
-      for (const [v, t] of opts) {
-        const o = document.createElement('option'); o.value = v; o.textContent = t;
+      for (const [v, t, suffix = ''] of opts) {
+        const o = document.createElement('option'); o.value = v; o.dataset.key = t; o.dataset.suffix = suffix; o.textContent = T(t) + suffix;
         s.appendChild(o);
       }
       s.value = val;
       return s;
+    };
+    // Each setup view is kept as a thunk: a language change re-runs it with the same choices.
+    const show = (view) => {
+      this._setupView = () => this.ui.setupScreen(view());
+      this._setupFields = fields;
+      this._setupView();
     };
 
     if (mode === 'daily') {
@@ -341,63 +356,63 @@ class App {
       const done = this.progress.lastDaily?.date === today;
       const leftMs = this.platform.msToNextDaily();
       const leftH = Math.floor(leftMs / 3600000), leftM = Math.ceil((leftMs % 3600000) / 60000);
-      this.ui.setupScreen({
+      show(() => ({
         mode: 'Daily Story',
-        facts: [['Date (UTC)', today], ['House', content.layout.label], ['Pieces', content.tray.length],
+        facts: [['Date (UTC)', today], ['House', layoutLabel(content.layout)], ['Pieces', content.tray.length],
           ['Discovery cards', content.cards.length], ['Seed', String(content.seed)],
-          ['Expected time', '3–6 minutes'], ['Players', '1 — scores compared asynchronously'],
-          ['Next daily in', `${leftH}h ${leftM}m (server-synced)`],
-          done ? ['Today', 'Completed — replay to improve'] : ['Today', 'Not yet played']],
+          ['Expected time', T('3–6 minutes')], ['Players', T('1 — scores compared asynchronously')],
+          ['Next daily in', T('{h}h {m}m (server-synced)', { h: leftH, m: leftM })],
+          done ? ['Today', T('Completed — replay to improve')] : ['Today', T('Not yet played')]],
         ranked: true, rankedNote: 'one shared seed and ruleset for everyone today',
         startLabel: done ? 'Replay today' : 'Start today’s story',
-      });
+      }));
     } else if (mode === 'learn') {
       const nextLesson = C.LESSONS.find(l => !this.progress.lessons[l.id]) || C.LESSONS[0];
-      const sel = select(C.LESSONS.map(l => [l.id, `${l.title}${this.progress.lessons[l.id] ? ' ✓' : ''}`]), nextLesson.id);
+      const sel = select(C.LESSONS.map(l => [l.id, l.title, this.progress.lessons[l.id] ? ' ✓' : '']), nextLesson.id);
       sel.addEventListener('change', () => { this.setup.lessonId = sel.value; this.audio.sfx('tab'); });
       fields.appendChild(mk('Lesson', sel));
       this.setup = { mode, lessonId: nextLesson.id };
-      this.ui.setupScreen({
+      show(() => ({
         mode: 'Learn',
-        facts: [['Lessons', `${C.LESSONS.length} interactive`], ['This lesson', nextLesson.title],
-          ['Rules', 'One new idea at a time — you perform each action'], ['Expected time', '1–3 minutes']],
+        facts: [['Lessons', T('{n} interactive', { n: C.LESSONS.length })], ['This lesson', T(nextLesson.title)],
+          ['Rules', T('One new idea at a time — you perform each action')], ['Expected time', T('1–3 minutes')]],
         ranked: false, rankedNote: 'lessons are never ranked',
         startLabel: 'Start lesson', fields,
-      });
+      }));
     } else if (mode === 'practice') {
       const diff = select(Object.entries(C.PRACTICE_DIFFICULTIES).map(([k, v]) => [k, v.label]), 'cozy');
       const theme = select(C.THEME_ORDER.map(t => [t, C.THEMES[t].label]), this._theme.id);
       const seedInput = document.createElement('input');
       seedInput.type = 'text'; seedInput.inputMode = 'numeric';
       seedInput.value = String(Math.floor(Math.random() * 899999) + 100000);
-      seedInput.setAttribute('aria-label', 'Seed');
+      seedInput.setAttribute('aria-label', T('Seed'));
       diff.addEventListener('change', () => { this.setup.difficulty = diff.value; this.audio.sfx('tab'); this._updateSetupFacts(); });
       theme.addEventListener('change', () => { this.setup.theme = theme.value; this.audio.sfx('tab'); });
       seedInput.addEventListener('change', () => { this.setup.seed = seedInput.value.replace(/\D/g, '') || '1'; });
       fields.append(mk('Difficulty', diff), mk('Theme', theme), mk('Seed (inspectable)', seedInput));
       this.setup = { mode, difficulty: 'cozy', theme: this._theme.id, seed: seedInput.value };
-      this.ui.setupScreen({
+      show(() => ({
         mode: 'Practice',
-        facts: this._practiceFacts('cozy'),
+        facts: this._practiceFacts(this.setup.difficulty),
         ranked: false, rankedNote: 'undo enabled, no effect on ratings',
         startLabel: 'Start practicing', fields,
-      });
+      }));
       this._setupFactsFor = (d) => this._practiceFacts(d);
     } else if (mode === 'challenge') {
       const sel = select(C.CHALLENGES.map(c => [c.id, c.label]), C.CHALLENGES[0].id);
       const update = () => {
         this.setup.challengeId = sel.value;
         const c = C.challengeContent(sel.value);
-        this.ui.setupScreen({
+        show(() => ({
           mode: 'Challenge',
-          facts: [['Challenge', c.label], ['House', c.layout.label], ['Pieces', c.tray.length],
+          facts: [['Challenge', T(c.label)], ['House', layoutLabel(c.layout)], ['Pieces', c.tray.length],
             ['Discovery cards', c.cards.length],
             ...(c.moveLimit ? [['Move limit', c.moveLimit]] : []),
-            ...(c.timeLimitMs ? [['Time limit', `${c.timeLimitMs / 1000}s · speed scores bonus`]] : []),
-            ['Undo', c.allowUndo ? 'Allowed' : 'Off'], ['Expected time', '3–8 minutes']],
+            ...(c.timeLimitMs ? [['Time limit', T('{n}s · speed scores bonus', { n: c.timeLimitMs / 1000 })]] : []),
+            ['Undo', c.allowUndo ? T('Allowed') : T('Off')], ['Expected time', T('3–8 minutes')]],
           ranked: c.ranked, rankedNote: c.ranked ? 'validated replay on the leaderboard' : 'unranked',
           startLabel: 'Take the challenge', fields,
-        });
+        }));
       };
       sel.addEventListener('change', () => { this.audio.sfx('tab'); update(); });
       this.setup = { mode, challengeId: sel.value };
@@ -407,35 +422,27 @@ class App {
       const seedInput = document.createElement('input');
       seedInput.type = 'text'; seedInput.inputMode = 'numeric';
       seedInput.value = String(Math.floor(Math.random() * 89999) + 10000);
-      seedInput.setAttribute('aria-label', 'Seed');
+      seedInput.setAttribute('aria-label', T('Seed'));
       seedInput.addEventListener('change', () => { this.setup.seed = seedInput.value.replace(/\D/g, '') || '1'; });
       fields.appendChild(mk('Seed (share it, race it)', seedInput));
       this.setup = { mode, seed: seedInput.value };
-      this.ui.setupScreen({
+      show(() => ({
         mode: 'Score Chase',
-        facts: [['House', 'Manor'], ['Pieces', '7, seeded'], ['Discovery cards', '4, seeded'],
-          ['Expected time', '4–8 minutes'], ['Validation', 'server replays your input log']],
+        facts: [['House', T('Manor')], ['Pieces', T('7, seeded')], ['Discovery cards', T('4, seeded')],
+          ['Expected time', T('4–8 minutes')], ['Validation', T('server replays your input log')]],
         ranked: true, rankedNote: 'global and friends boards on this seed',
         startLabel: 'Chase the score', fields,
-      });
+      }));
     }
   }
   _practiceFacts(d) {
     const dd = C.PRACTICE_DIFFICULTIES[d];
-    return [['Difficulty', dd.label], ['House', dd.layout], ['Pieces', dd.chars + dd.props],
-      ['Discovery cards', dd.cards.length], ['Move limit', dd.limited ? 'Yes — tight' : 'None'],
-      ['Undo', 'Allowed'], ['Expected time', '2–7 minutes']];
+    return [['Difficulty', T(dd.label)], ['House', layoutLabel(C.LAYOUTS[dd.layout])], ['Pieces', dd.chars + dd.props],
+      ['Discovery cards', dd.cards.length], ['Move limit', dd.limited ? T('Yes — tight') : T('None')],
+      ['Undo', T('Allowed')], ['Expected time', T('2–7 minutes')]];
   }
   _updateSetupFacts() {
-    if (this.mode === 'practice' && this.setup) {
-      this.ui.setupScreen({
-        mode: 'Practice',
-        facts: this._practiceFacts(this.setup.difficulty),
-        ranked: false, rankedNote: 'undo enabled, no effect on ratings',
-        startLabel: 'Start practicing',
-        fields: document.querySelector('#setup-body > div'),
-      });
-    }
+    if (this.mode === 'practice' && this.setup && this._setupView) this._setupView();
   }
 
   openJourneyMap() {
@@ -450,6 +457,7 @@ class App {
         return { index, label, mastery: si === 8, stars: rec?.stars || 0, locked, current: index === this._nextJourneyIndex() };
       }),
     }));
+    this._journeyArgs = chapters;
     this.ui.journeyMap(chapters, this.progress, (index) => {
       this.mode = 'journey';
       this._startSession({ mode: 'journey', index });
@@ -459,7 +467,11 @@ class App {
 
   openScrapbook() {
     this._transition('mode-select', 'scrapbook');
-    const scenes = this.platform.loadScenes();
+    this._renderScrapbook();
+    this.ui.showScreen('scrapbook');
+  }
+  _renderScrapbook() {
+    const scenes = this.platform.loadScenes().map((s) => ({ ...s, label: contentLabel({ label: s.label, contentId: s.contentId }) }));
     const mastery = [
       ['Beat kinds discovered', `${this.progress.beatsSeen.length} / ${Object.keys(R.BEATS).length}`],
       ['Discovery cards collected', `${this.progress.cardsCollected.length}`],
@@ -472,11 +484,14 @@ class App {
       ...a, unlocked: !!this.progress.achievements[a.id], at: this.progress.achievements[a.id],
     }));
     this.ui.scrapbook({ scenes, mastery, achievements });
-    this.ui.showScreen('scrapbook');
   }
 
   openHelp() {
     this._transition('mode-select', 'help');
+    this._renderHelp();
+    this.ui.showScreen('help');
+  }
+  _renderHelp() {
     const sample = C.practiceContent('cozy', 1, 'meadow');
     const st = R.createGame(sample);
     const legal = R.listLegalActions(st);
@@ -485,12 +500,12 @@ class App {
     const key = (a) => codeLabel((b[a] || ['?'])[0]);
     this.ui.help({
       ruleCards: [
-        { title: 'Make a home', text: 'Place characters and props from the tray into glowing spots. Every piece on the floor is part of the story.', example: place ? `place the ${sample.items[place.item].name} in the ${st.rooms.find(r => r.id === place.room).name}` : null },
+        { title: 'Make a home', text: 'Place characters and props from the tray into glowing spots. Every piece on the floor is part of the story.', example: place ? () => T('place the {item} in the {room}', { item: itemName(place.item), room: roomName(st.rooms.find(r => r.id === place.room)) }) : null },
         { title: 'Make a moment', text: 'A character and a prop in the same room can interact — that records a story moment. Two characters can share a heart to heart. Props alone cannot interact.', example: 'put Pip and the Old Clock in one room, then interact' },
         { title: 'Signatures & habitats', text: 'Each character has a favorite thing (a golden ✦ signature moment). Moments in their natural room earn a habitat bonus.', example: 'Mabel with the Potted Fern, or tea in the Kitchen' },
         { title: 'Discovery cards', text: 'Optional goals on the left rail. Complete them for points and to grow your collection — or ignore them and play freely.', example: 'check the Goals drawer any time' },
         { title: 'Save the scene', text: 'Finished stories are scored by moments, discoveries, room coverage, and variety — the breakdown is always shown. Scenes persist in your Scrapbook.', example: 'the “Save scene ✦” button ends a story' },
-        { title: 'Every action, acknowledged', text: `Confirm with ${key('confirm')}, cancel with ${key('cancel')}, undo with ${key('undo')}, hint with ${key('hint')}, camera reset with ${key('camera')}. Hints only suggest moves that are legal right now.` },
+        { title: 'Every action, acknowledged', text: () => T('Confirm with {confirm}, cancel with {cancel}, undo with {undo}, hint with {hint}, camera reset with {camera}. Hints only suggest moves that are legal right now.', { confirm: key('confirm'), cancel: key('cancel'), undo: key('undo'), hint: key('hint'), camera: key('camera') }) },
       ],
       bindings: [
         ...Object.entries(b).filter(([a]) => !['left', 'right', 'up', 'down'].includes(a))
@@ -502,7 +517,6 @@ class App {
         ['Cycle rooms', ['gamepad shoulder buttons']],
       ],
     });
-    this.ui.showScreen('help');
   }
 
   openSettings() {
@@ -609,7 +623,7 @@ class App {
 
   _startSession(setup, restored = null) {
     const content = restored ? restored.content : this._contentFor(setup.mode, setup);
-    if (!content) { this.ui.toast('That content is unavailable.', 'bad'); return; }
+    if (!content) { this.ui.toast(T('That content is unavailable.'), 'bad'); return; }
     this.mode = setup.mode;
     this.setup = { mode: setup.mode, ...setup };
     clearTimeout(this._cdTimer); // a restart mid-countdown must not run two chains
@@ -650,11 +664,11 @@ class App {
     this.input.enabled = false;
     const seq = this.settings.reducedMotion ? ['Go'] : ['3', '2', '1', 'Go'];
     let i = 0;
-    this.ui.live(`${content.label}. ${this._objectiveText()}`);
+    this.ui.live(`${contentLabel(content)}. ${this._objectiveText()}`);
     const step = () => {
       if (!this.session) return;
       if (i < seq.length) {
-        this.ui.countdown(seq[i]);
+        this.ui.countdown(T(seq[i]));
         this.audio.sfx(i === seq.length - 1 ? 'go' : 'countdown');
         i++;
         this._cdTimer = setTimeout(step, this.settings.reducedMotion ? 500 : 700);
@@ -693,7 +707,7 @@ class App {
     this.platform.telemetry('retry', {});
     this.ui.showPause(false);
     this._startSession({ mode: this.mode, ...this.setup, index: this.setup?.index });
-    this.ui.toast('Fresh start — same house, same seed.');
+    this.ui.toast(T('Fresh start — same house, same seed.'));
   }
 
   _saveSnapshot() {
@@ -706,14 +720,14 @@ class App {
     const json = this.platform.loadSnapshot();
     if (!json) return;
     const restored = GameSession.restoreSnapshot(json);
-    if (!restored) { this.ui.toast('That saved story could not be read.', 'bad'); return; }
+    if (!restored) { this.ui.toast(T('That saved story could not be read.'), 'bad'); return; }
     this.mode = restored.content.mode;
     // Rebuild the setup from the restored content, so Restart and Next can
     // regenerate the same stage instead of asking for an undefined one.
     this.setup = this._setupForContent(restored.content);
     this._startSession(this.setup, restored);
     const ago = Math.round((Date.now() - (restored._savedAt || Date.now())) / 60000);
-    this.ui.toast(`Welcome back — restored your paused story${ago >= 1 ? ` from about ${ago} min ago` : ''}.`);
+    this.ui.toast(ago >= 1 ? T('Welcome back — restored your paused story from about {n} min ago.', { n: ago }) : T('Welcome back — restored your paused story.'));
   }
 
   pauseGame(reason, { silent = false } = {}) {
@@ -833,7 +847,7 @@ class App {
     const room = R.roomById(st, slot.room);
     const item = room?.slots[slot.slot];
     if (item) this.tapPiece(item);
-    else this.ui.toast('Pick a piece from the tray first — then choose a spot.');
+    else this.ui.toast(T('Pick a piece from the tray first — then choose a spot.'));
   }
 
   _placeSelected(slot) {
@@ -896,7 +910,7 @@ class App {
       this._submit({ type: 'interact', room: room.id, a: this.selection, b: partner });
       this.setSelection(null);
     } else {
-      this.ui.toast('No fresh moment available with this piece here.');
+      this.ui.toast(T('No fresh moment available with this piece here.'));
     }
   }
 
@@ -920,14 +934,14 @@ class App {
         this.audio.beatSfx(e.beat.t, e.beat.sig === 1, e.beat.hab === 1, null);
         this.audio.voiceBlip(e.beat.a, null);
         this._haptic([12, 40, 12]);
-        this.ui.live(`${e.label} — a new story moment.`);
+        this.ui.live(T('{beat} — a new story moment.', { beat: beatLabel(e.beat.t) }));
         this._resolving = true;
         this.input.locked = true;
         setTimeout(() => { this._resolving = false; this.input.locked = false; }, 260);
       }
       else if (e.type === 'card') {
         this.audio.cardSfx();
-        this.ui.toast(`◆ Discovery complete: ${e.card.title} (+${e.card.points})`, 'good');
+        this.ui.toast('◆ ' + T('Discovery complete: {card} (+{n})', { card: cardTitle(e.card), n: e.card.points }), 'good');
         this._haptic([20, 60, 20]);
       }
       else if (e.type === 'invalid') {
@@ -956,10 +970,10 @@ class App {
           this.progress.lessons[this.lesson.def.id] = true;
           this.settings.tutorialsDone[this.lesson.def.id] = true;
           this._saveSettingsQuiet();
-          this.ui.toast(`Lesson complete: ${this.lesson.def.title} ✓`, 'good');
+          this.ui.toast(T('Lesson complete: {name} ✓', { name: T(this.lesson.def.title) }), 'good');
         } else {
           this.audio.sfx('tutorial');
-          this.ui.live(`Lesson step ${this.lesson.stepIndex + 1}: ${this.lesson.def.steps[this.lesson.stepIndex].text}`);
+          this.ui.live(T('Lesson step {n}: {text}', { n: this.lesson.stepIndex + 1, text: T(this.lesson.def.steps[this.lesson.stepIndex].text) }));
         }
         this.platform.saveProgress(this.progress);
       }
@@ -995,31 +1009,43 @@ class App {
     if (!s) return;
     this.audio.sfx('hint');
     let text;
+    const why = this._hintWhy(s.why);
     if (s.type === 'place' || s.type === 'move') {
       const room = R.roomById(this.session.state, s.room);
-      text = `${s.why} Try ${s.type === 'place' ? 'placing' : 'moving'} ${this.session.state.items[s.item].name} to the ${room.name}.`;
+      text = why + ' ' + T(s.type === 'place' ? 'Try placing {item} in the {room}.' : 'Try moving {item} to the {room}.', { item: itemName(s.item), room: roomName(room) });
       this.setSelection(s.item);
       this.stage.focusRoom(s.room);
     } else if (s.type === 'interact') {
-      text = `${s.why} Try ${this.session.state.items[s.a].name} with ${this.session.state.items[s.b].name} in the ${R.roomById(this.session.state, s.room).name}.`;
+      text = why + ' ' + T('Try {a} with {b} in the {room}.', { a: itemName(s.a), b: itemName(s.b), room: roomName(R.roomById(this.session.state, s.room)) });
       this.setSelection(s.a);
       this.stage.focusRoom(s.room);
     } else {
-      text = `${s.why} Press “Save scene ✦” when you are ready.`;
+      text = why + ' ' + T('Press “Save scene ✦” when you are ready.');
     }
     this.ui.toast(text, 'good');
     this.ui.live(text);
   }
 
+  /** rules.suggestAction's English reason, localized (card titles rebuilt from the card). */
+  _hintWhy(why) {
+    const m = /^(Works toward|Set up) “(.+)”\.$/.exec(why || '');
+    if (m) {
+      const def = this.session.state.cardDefs.find((c) => c.title === m[2]);
+      const card = def ? cardTitle(def) : T(m[2]);
+      return m[1] === 'Set up' ? T('Set up “{card}”.', { card }) : T('Works toward “{card}”.', { card });
+    }
+    return T(why || '');
+  }
+
   undo() {
     if (!this._canAct()) return;
     const prev = this.session.undo();
-    if (!prev) { this.ui.toast('Nothing to undo.'); return; }
+    if (!prev) { this.ui.toast(T('Nothing to undo.')); return; }
     this.audio.sfx('undo');
     this.selection = null;
     this.stage.setSelection(null, []);
     this.stage.settleAll(this.session.state);
-    this.ui.toast('Undone.');
+    this.ui.toast(T('Undone.'));
     this._syncAll();
   }
 
@@ -1058,7 +1084,7 @@ class App {
       dragMode: this.settings.dragMode,
     });
     this.ui.setTray(
-      st.tray.map(key => ({ key, name: st.items[key].name, kind: st.items[key].kind })),
+      st.tray.map(key => ({ key, name: itemName(key), kind: st.items[key].kind })),
       this.selection,
     );
     this.ui.mirror(st, this.selection, (a) => {
@@ -1071,19 +1097,19 @@ class App {
 
   _objectiveText() {
     const st = this.session.state;
-    if (this.lesson) return this.lesson.def.intro;
+    if (this.lesson) return T(this.lesson.def.intro);
     const total = st.cardDefs.length;
     const done = st.cardDefs.filter(c => st.cards[c.id] === 1).length;
-    if (st.moveLimit !== null) return `Move limit: ${st.moveLimit}. Cards ${done}/${total}. End by saving the scene — it ends itself at the limit.`;
-    if (st.timeLimitMs !== null) return `Beat the clock (${st.timeLimitMs / 1000}s). Cards ${done}/${total}. Speed adds bonus.`;
-    return total ? `Discovery cards ${done}/${total} — or play freely, then save the scene.` : 'Play freely, then save the scene.';
+    if (st.moveLimit !== null) return T('Move limit: {limit}. Cards {done}/{total}. End by saving the scene — it ends itself at the limit.', { limit: st.moveLimit, done, total });
+    if (st.timeLimitMs !== null) return T('Beat the clock ({n}s). Cards {done}/{total}. Speed adds bonus.', { n: st.timeLimitMs / 1000, done, total });
+    return total ? T('Discovery cards {done}/{total} — or play freely, then save the scene.', { done, total }) : T('Play freely, then save the scene.');
   }
 
   _updateHud() {
     if (!this.session) return;
     const st = this.session.state;
     const score = R.scoreState(st);
-    const movesText = st.moveLimit !== null ? `Moves ${st.stats.moves}/${st.moveLimit}` : `Moves ${st.stats.moves}`;
+    const movesText = st.moveLimit !== null ? T('Moves {n}/{limit}', { n: st.stats.moves, limit: st.moveLimit }) : T('Moves {n}', { n: st.stats.moves });
     let clockText = '', clockWarn = false;
     if (st.timeLimitMs !== null) {
       const left = Math.max(0, st.timeLimitMs - this.session.elapsedMs());
@@ -1095,48 +1121,48 @@ class App {
     }
 
     // Context actions for the current selection.
-    let selectionDesc = 'Nothing selected. Tap a piece to pick it up.';
+    let selectionDesc = T('Nothing selected. Tap a piece to pick it up.');
     const ctx = [];
     if (this.selection) {
-      const item = st.items[this.selection];
       const placed = R.itemSlot(st, this.selection);
+      const name = itemName(this.selection);
       selectionDesc = placed
-        ? `${item.name} — in the ${placed.room.name}. Tap a glowing spot to move, or:`
-        : `${item.name} — on the tray. Tap a glowing spot to place.`;
+        ? T('{name} — in the {room}. Tap a glowing spot to move, or:', { name, room: roomName(placed.room) })
+        : T('{name} — on the tray. Tap a glowing spot to place.', { name });
       if (placed) {
         const others = R.itemsInRoom(st, placed.room.id).filter(k => k !== this.selection);
         for (const other of others) {
           const beat = R.beatForPair(st, this.selection, other);
           if (beat && !R.hasBeat(st, beat.type, placed.room.id, this.selection, other)) {
-            ctx.push({ kind: 'interact', room: placed.room.id, a: this.selection, b: other, label: `✦ ${R.BEATS[beat.type].label}: ${item.name} + ${st.items[other].name}` });
+            ctx.push({ kind: 'interact', room: placed.room.id, a: this.selection, b: other, label: `✦ ${beatLabel(beat.type)}: ${name} + ${itemName(other)}` });
           }
         }
-        ctx.push({ kind: 'remove', item: this.selection, label: `↩ Return ${item.name} to the tray` });
+        ctx.push({ kind: 'remove', item: this.selection, label: '↩ ' + T('Return {name} to the tray', { name }) });
       }
     }
 
     const lessonView = this.lesson ? {
-      title: this.lesson.def.title,
+      title: T(this.lesson.def.title),
       stepText: this.lesson.stepIndex < this.lesson.def.steps.length
-        ? this.lesson.def.steps[this.lesson.stepIndex].text
-        : 'Lesson complete — saving…',
-      progress: `Step ${Math.min(this.lesson.stepIndex + 1, this.lesson.def.steps.length)} of ${this.lesson.def.steps.length}`,
+        ? T(this.lesson.def.steps[this.lesson.stepIndex].text)
+        : T('Lesson complete — saving…'),
+      progress: T('Step {n} of {total}', { n: Math.min(this.lesson.stepIndex + 1, this.lesson.def.steps.length), total: this.lesson.def.steps.length }),
     } : null;
 
     const pending = st.cardDefs.filter(c => st.cards[c.id] === 0).length;
     this.ui.updateHud({
-      stageTitle: this.session.content.label || this.session.content.contentId,
+      stageTitle: contentLabel(this.session.content),
       objective: this._objectiveText(),
       movesText, clockText, clockWarn,
       scoreText: `★ ${score.total}`,
       canUndo: this.session.canUndo(),
       canHint: this.state === 'active',
-      finishNote: pending ? `${pending} card${pending > 1 ? 's' : ''} still open` : (st.cardDefs.length ? 'All cards complete ✓' : ''),
-      cards: st.cardDefs.map(c => ({ ...c, done: st.cards[c.id] === 1 })),
+      finishNote: pending ? T(pending > 1 ? '{n} cards still open' : '{n} card still open', { n: pending }) : (st.cardDefs.length ? T('All cards complete ✓') : ''),
+      cards: st.cardDefs.map(c => ({ ...c, title: cardTitle(c), text: cardText(c), done: st.cards[c.id] === 1 })),
       beats: st.beats.map(b => ({
-        label: R.BEATS[b.t].label, sig: b.sig === 1, hab: b.hab === 1,
-        who: `${st.items[b.a].name} + ${st.items[b.b].name}`,
-        room: R.roomById(st, b.room)?.name ?? b.room,
+        label: beatLabel(b.t), sig: b.sig === 1, hab: b.hab === 1,
+        who: `${itemName(b.a)} + ${itemName(b.b)}`,
+        room: roomName(R.roomById(st, b.room)) || b.room,
       })),
       selectionDesc,
       contextActions: ctx,
@@ -1209,7 +1235,7 @@ class App {
     let compareText = '';
     const ranked = this.session.content.ranked && !this.settings.timingAssist;
     if (ranked) {
-      compareText = this.platform.hosted ? shText('lbPosting') : 'Submitting to the leaderboard…';
+      compareText = this.platform.hosted ? () => shText('lbPosting') : () => T('Submitting to the leaderboard…');
       const submission = {
         mode: this.mode, contentId: st.contentId, seed: st.seed,
         ruleset: R.RULESET_VERSION, contentVersion: C.CONTENT_VERSION,
@@ -1228,8 +1254,9 @@ class App {
         this.platform.postScore(score.total).then((r) => {
           const el = document.getElementById('results-compare');
           if (!el || this.session !== session) return;
-          el.textContent = !r.posted ? shText('lbNotPosted')
-            : r.rank ? shText('lbRank', { rank: r.rank }) : shText('lbPosted');
+          const line = () => (!r.posted ? shText('lbNotPosted') : r.rank ? shText('lbRank', { rank: r.rank }) : shText('lbPosted'));
+          if (this.ui._results) this.ui._results.compareText = line;
+          el.textContent = line();
         });
       }
       this.platform.submitScore(submission).then(async (r) => {
@@ -1237,13 +1264,14 @@ class App {
         if (!el || this.platform.hosted) return; // hosted: the line shows the platform rank
         const board = await this.platform.leaderboard(this.mode === 'daily' ? 'daily' : 'global', { contentId: st.contentId });
         const rank = board.entries.findIndex(e => e.sessionId === r.entry.sessionId) + 1;
-        const label = 'local board (casual — offline)';
-        el.textContent = rank > 0
-          ? `Placed #${rank} of ${board.entries.length} on the ${label}.`
-          : `Score saved to the ${label}.`;
+        const line = () => (rank > 0
+          ? T('Placed #{rank} of {n} on the local board (casual — offline).', { rank, n: board.entries.length })
+          : T('Score saved to the local board (casual — offline).'));
+        if (this.ui._results) this.ui._results.compareText = line;
+        el.textContent = line();
       });
     } else if (this.settings.timingAssist && this.session.content.ranked) {
-      compareText = 'Timing assistance is on — this score is casual and was not submitted.';
+      compareText = () => T('Timing assistance is on — this score is casual and was not submitted.');
     }
 
     const headline = {
@@ -1257,8 +1285,8 @@ class App {
       stars: score.stars,
       total: score.total,
       rows: [
-        ['Story moments', `${score.moments} (${score.beats} beats)`],
-        ['Discoveries', `${score.discoveries} (${score.cardsDone}/${score.cardsTotal} cards)`],
+        ['Story moments', () => T('{n} ({beats} beats)', { n: score.moments, beats: score.beats })],
+        ['Discoveries', () => T('{n} ({done}/{total} cards)', { n: score.discoveries, done: score.cardsDone, total: score.cardsTotal })],
         ['Room coverage', score.coverage],
         ['Variety', score.variety],
         ...(score.timeBonus ? [['Time bonus', score.timeBonus]] : []),
@@ -1266,11 +1294,11 @@ class App {
         ['Elapsed', `${Math.floor(score.elapsedMs / 1000)}s`],
         ['Invalid actions', score.invalid],
       ],
-      cards: st.cardDefs.map(c => ({ title: c.title, done: st.cards[c.id] === 1 })),
+      cards: st.cardDefs.map(c => ({ title: () => cardTitle(c), done: st.cards[c.id] === 1 })),
       achievements: newly,
       compareText,
       nextLabel: this._nextLabel(),
-      summary: `${score.beats} moments, ${score.cardsDone} of ${score.cardsTotal} cards.`,
+      summary: () => T('{n} moments, {done} of {total} cards.', { n: score.beats, done: score.cardsDone, total: score.cardsTotal }),
     });
     this.audio.sfx('finish');
     // Results reveal: tally, then one chime per star, then the flourishes.
@@ -1333,6 +1361,30 @@ class App {
       return;
     }
     this.restartSession('next');
+  }
+
+  /**
+   * Language change: static markup is re-applied by i18n.js; redraw everything
+   * built in code from current state — no restart, no new deal, no save.
+   */
+  relocalize() {
+    this.ui.labelAccount();
+    this.ui.setKeyHints(this.settings.bindings);
+    this._refreshTitle();
+    this.gfxPanel?.setLang?.();
+    this.ui.setPaused(!!this.ui._paused);
+    this.ui.relabelDialog();
+    const screen = this.ui.screen();
+    if (screen === 'setup' && this._setupView) {
+      for (const el of this._setupFields?.querySelectorAll('[data-key]') || []) el.textContent = T(el.dataset.key) + (el.dataset.suffix || '');
+      this._setupView();
+    }
+    if (screen === 'journey' && this._journeyArgs) this.ui.journeyMap(this._journeyArgs, this.progress, (index) => { this.mode = 'journey'; this._startSession({ mode: 'journey', index }); });
+    if (screen === 'scrapbook') this._renderScrapbook();
+    if (screen === 'help') this._renderHelp();
+    if (screen === 'settings' && this.ui._bindingsArgs) this.ui.bindingsEditor(...this.ui._bindingsArgs);
+    if (screen === 'results' && this.ui._results) this.ui.results(this.ui._results, true);
+    if (this.session) this._syncAll();
   }
 
   _saveSettingsQuiet() {

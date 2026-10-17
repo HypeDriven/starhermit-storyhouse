@@ -23,6 +23,10 @@
   --sal: env(safe-area-inset-left, 0px);
   --sas: env(safe-area-inset-right, 0px);
   --text-scale: 1;
+  /* tokens the shared game-options.js controls (Sound, Language, Report) read */
+  --text: var(--ink);
+  --panel: var(--paper-2);
+  --panel2: var(--paper-3);
 }
 html.palette-protan  { --good: #4a9ad9; --bad: #e07b39; --card: #c9a24a; }
 html.palette-deutan  { --good: #4a9ad9; --bad: #e0b03a; --card: #8a7fe0; }
@@ -282,6 +286,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 40px;
 }
 .settings-form output { min-width: 3ch; text-align: end; color: var(--ink-dim); }
+.settings-form fieldset { grid-template-columns: minmax(0, 1fr); }
+/* long translated option text must not widen the fieldset past the panel */
+.settings-form label:not(.game-options-row) > select { min-width: 0; max-width: 62%; text-overflow: ellipsis; }
+/* shared Sound / Language / Report rows: give translated labels more room on phones */
+@media (max-width: 480px) {
+  #screen-settings .game-options-row { grid-template-columns: minmax(0, 1fr) minmax(76px, 34%) auto; }
+  #screen-settings .game-options-report .game-options-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
 
 /* Graphics panel (built by gfx-panel.js) */
 .gfx-panel { display: grid; gap: 8px; min-width: 0; }

@@ -6,6 +6,8 @@ import { reasonText } from './rules.js';
 import { codeLabel } from './persist.js';
 import { shText } from './sh-i18n.js';
 import { ACHIEVEMENTS, THEMES, CHALLENGES, PRACTICE_DIFFICULTIES, LESSONS } from './content.js';
+import { T } from './i18n.js';
+import { itemName, itemKind, roomName, roomTypeName } from './loc.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -39,8 +41,7 @@ export class UI {
       btn.addEventListener('click', () => this.h.onGoto(btn.dataset.goto));
     });
     $('btn-play').addEventListener('click', () => this.h.onPlay());
-    $('btn-signin').textContent = shText('signIn');
-    $('btn-invite').textContent = shText('invite');
+    this.labelAccount();
     $('btn-signin').addEventListener('click', () => this.h.onSignIn());
     $('btn-invite').addEventListener('click', () => this.h.onInvite());
     $('btn-resume-session').addEventListener('click', () => this.h.onResumeSnapshot());
@@ -109,6 +110,12 @@ export class UI {
     }, true);
   }
 
+  /** Account buttons in the current language (sh-i18n.js). */
+  labelAccount() {
+    $('btn-signin').textContent = shText('signIn');
+    $('btn-invite').textContent = shText('invite');
+  }
+
   /** Rebuild a live list without throwing keyboard focus back to the body:
    *  the element carrying the same data-focus-key regains focus afterwards. */
   _rebuildKeepingFocus(container, rebuild) {
@@ -159,14 +166,15 @@ export class UI {
   /** The HUD pause chip is a toggle: say which way it goes. Backgrounding the
    *  tab pauses silently, so this is the only visible way back in. */
   setPaused(on) {
+    this._paused = !!on;
     const btn = $('btn-pause');
     btn.setAttribute('aria-pressed', String(!!on));
-    btn.title = on ? 'Resume (Esc or P)' : 'Pause (Esc or P)';
+    btn.title = on ? T('Resume (Esc or P)') : T('Pause (Esc or P)');
     btn.textContent = '';
     btn.append(on ? '▶ ' : '⏸ ');
     const label = document.createElement('span');
     label.className = 'btn-label';
-    label.textContent = on ? 'Resume' : 'Pause';
+    label.textContent = on ? T('Resume') : T('Pause');
     btn.appendChild(label);
   }
 
@@ -175,17 +183,20 @@ export class UI {
     $('countdown-text').textContent = text || '';
   }
 
-  showDialog({ title, text, buttons }) {
+  showDialog(spec) {
+    // title/text/labels are English keys, translated here (and again on a language change).
+    const { title, text, buttons } = spec;
+    this._dialog = spec;
     this._dialogPrevFocus = document.activeElement;
-    $('dialog-heading').textContent = title;
-    $('dialog-text').textContent = text;
+    $('dialog-heading').textContent = T(title);
+    $('dialog-text').textContent = T(text);
     const box = $('dialog-buttons');
     box.textContent = '';
     for (const b of buttons) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = b.primary ? 'primary-btn' : (b.danger ? 'menu-btn danger' : 'menu-btn');
-      btn.textContent = b.label;
+      btn.textContent = T(b.label);
       btn.addEventListener('click', () => {
         this.h.onSound?.(b.primary || b.danger ? 'confirm' : 'back');
         this._closeDialog();
@@ -197,7 +208,15 @@ export class UI {
     box.querySelector('button')?.focus();
     this.h.onSound?.('open');
   }
+  /** Language change: relabel an open dialog in place. */
+  relabelDialog() {
+    if ($('overlay-dialog').hidden || !this._dialog) return;
+    $('dialog-heading').textContent = T(this._dialog.title);
+    $('dialog-text').textContent = T(this._dialog.text);
+    [...$('dialog-buttons').children].forEach((btn, i) => { if (this._dialog.buttons[i]) btn.textContent = T(this._dialog.buttons[i].label); });
+  }
   _closeDialog() {
+    this._dialog = null;
     $('overlay-dialog').hidden = true;
     this._dialogPrevFocus?.focus?.();
   }
@@ -218,7 +237,7 @@ export class UI {
     requestAnimationFrame(() => { el.textContent = text; });
   }
   announceError(reason) {
-    const text = reasonText(reason);
+    const text = T(reasonText(reason));
     this.toast(text, 'bad');
     this.live(text, true);
   }
@@ -227,7 +246,7 @@ export class UI {
     if (!this._captionsOn) return;
     const el = $('captions');
     el.hidden = false;
-    el.textContent = `♪ ${text}`;
+    el.textContent = `♪ ${T(text)}`;
     clearTimeout(this._captionTimer);
     this._captionTimer = setTimeout(() => { el.hidden = true; }, 3200);
   }
@@ -258,7 +277,8 @@ export class UI {
     }
     if (!v.cards.length) {
       const li = document.createElement('li');
-      li.innerHTML = '<span class="card-text">No discovery cards here — play freely.</span>';
+      li.innerHTML = '<span class="card-text"></span>';
+      li.firstChild.textContent = T('No discovery cards here — play freely.');
       list.appendChild(li);
     }
 
@@ -269,9 +289,9 @@ export class UI {
       const strong = document.createElement('strong');
       strong.textContent = b.label;
       li.appendChild(strong);
-      li.append(` — ${b.who} in the ${b.room}`);
-      if (b.sig) { const s = document.createElement('span'); s.className = 'sig'; s.textContent = ' ✦ signature'; li.appendChild(s); }
-      if (b.hab) { const s = document.createElement('span'); s.className = 'hab'; s.textContent = ' ⌂ at home'; li.appendChild(s); }
+      li.append(' — ' + T('{who} in the {room}', { who: b.who, room: b.room }));
+      if (b.sig) { const s = document.createElement('span'); s.className = 'sig'; s.textContent = ' ✦ ' + T('signature'); li.appendChild(s); }
+      if (b.hab) { const s = document.createElement('span'); s.className = 'hab'; s.textContent = ' ⌂ ' + T('at home'); li.appendChild(s); }
       log.appendChild(li);
     }
 
@@ -322,16 +342,16 @@ export class UI {
       icon.textContent = PIECE_ICONS[it.key] || '◼';
       icon.setAttribute('aria-hidden', 'true');
       const label = document.createElement('span');
-      label.textContent = it.name;
+      label.textContent = itemName(it.key);
       btn.append(icon, label);
-      btn.title = `${it.name} (${it.kind})`;
+      btn.title = `${itemName(it.key)} (${itemKind(it.kind)})`;
       btn.addEventListener('click', () => this.h.onTraySelect(it.key));
       tray.appendChild(btn);
     }
     if (!items.length) {
       const span = document.createElement('span');
       span.className = 'fine-print';
-      span.textContent = 'Tray is empty — everything is in the house.';
+      span.textContent = T('Tray is empty — everything is in the house.');
       tray.appendChild(span);
     }
   }
@@ -340,21 +360,25 @@ export class UI {
   setTitleInfo({ journeyDone, journeyTotal, dailyDone, profile, sync, hasSnapshot, canSignIn = false, canInvite = false }) {
     $('btn-signin').hidden = !canSignIn;
     $('btn-invite').hidden = !canInvite;
-    $('journey-sub').textContent = `${journeyDone} of ${journeyTotal} stages`;
-    $('daily-sub').textContent = dailyDone ? 'Done today — see the board' : 'One shared house, today only';
-    $('profile-badge').textContent = profile ? `Playing as ${profile.name}${sync ? ` · ${sync}` : ''}` : '';
+    $('journey-sub').textContent = T('{done} of {total} stages', { done: journeyDone, total: journeyTotal });
+    $('daily-sub').textContent = dailyDone ? T('Done today — see the board') : T('One shared house, today only');
+    const name = profile ? (profile.local ? T('Local Guest') : profile.name) : '';
+    $('profile-badge').textContent = profile ? T('Playing as {name}', { name }) + (sync ? ` · ${T(sync)}` : '') : '';
     $('resume-line').hidden = !hasSnapshot;
   }
 
   /** Keyboard hint line under the canvas, from the effective bindings. */
   setKeyHints(b) {
     const k = (a) => (b[a] || []).map(codeLabel).join('/') || '—';
-    $('canvas-keys').textContent = `Arrows move the cursor · ${k('confirm')} select/place · ${k('cancel')} cancel · ${k('hint')} hint · ${k('undo')} undo · ${k('camera')} camera`;
+    this._keyHints = b;
+    $('canvas-keys').textContent = T('Arrows move the cursor · {confirm} select/place · {cancel} cancel · {hint} hint · {undo} undo · {camera} camera', {
+      confirm: k('confirm'), cancel: k('cancel'), hint: k('hint'), undo: k('undo'), camera: k('camera'),
+    });
   }
 
   // --------------------------------------------------------------- setup
   setupScreen({ mode, facts, ranked, rankedNote, startLabel, fields }) {
-    $('setup-heading').textContent = mode;
+    $('setup-heading').textContent = T(mode);
     const body = $('setup-body');
     body.textContent = '';
     const dl = document.createElement('dl');
@@ -362,23 +386,24 @@ export class UI {
     for (const [k, v] of facts) {
       const div = document.createElement('div');
       div.className = 'setup-fact';
-      const dt = document.createElement('dt'); dt.textContent = k;
-      const dd = document.createElement('dd'); dd.textContent = v;
+      const dt = document.createElement('dt'); dt.textContent = T(k);
+      const dd = document.createElement('dd'); dd.textContent = typeof v === 'function' ? v() : String(v);
       div.append(dt, dd);
       dl.appendChild(div);
     }
     body.appendChild(dl);
     const badge = document.createElement('p');
     badge.className = ranked ? 'ranked-badge' : 'casual-badge';
-    badge.textContent = ranked ? `◆ Ranked — ${rankedNote}` : `○ Casual — ${rankedNote}`;
+    badge.textContent = ranked ? `◆ ${T('Ranked')} — ${T(rankedNote)}` : `○ ${T('Casual')} — ${T(rankedNote)}`;
     body.appendChild(badge);
     if (fields) body.appendChild(fields);
-    $('btn-setup-start').textContent = startLabel || 'Start';
+    $('btn-setup-start').textContent = T(startLabel || 'Start');
   }
 
   // -------------------------------------------------------------- results
-  results(v) {
-    $('results-heading').textContent = v.headline;
+  results(v, relabel) {
+    this._results = v;
+    $('results-heading').textContent = T(v.headline);
     const stars = $('results-stars');
     stars.innerHTML = '';
     for (let i = 0; i < 3; i++) {
@@ -387,19 +412,19 @@ export class UI {
       if (i >= v.stars) s.className = 'dim';
       stars.appendChild(s);
     }
-    stars.setAttribute('aria-label', `${v.stars} of 3 stars`);
+    stars.setAttribute('aria-label', T('{n} of 3 stars', { n: v.stars }));
     const tbody = $('results-table').querySelector('tbody');
     const tfoot = $('results-table').querySelector('tfoot');
     tbody.textContent = ''; tfoot.textContent = '';
     for (const row of v.rows) {
       const tr = document.createElement('tr');
-      const td1 = document.createElement('td'); td1.textContent = row[0];
-      const td2 = document.createElement('td'); td2.textContent = row[1];
+      const td1 = document.createElement('td'); td1.textContent = T(row[0]);
+      const td2 = document.createElement('td'); td2.textContent = typeof row[1] === 'function' ? row[1]() : row[1];
       tr.append(td1, td2);
       tbody.appendChild(tr);
     }
     const tr = document.createElement('tr');
-    const td1 = document.createElement('td'); td1.textContent = 'Total';
+    const td1 = document.createElement('td'); td1.textContent = T('Total');
     const td2 = document.createElement('td'); td2.textContent = v.total;
     tr.append(td1, td2); tfoot.appendChild(tr);
 
@@ -408,7 +433,7 @@ export class UI {
     for (const c of v.cards) {
       const d = document.createElement('div');
       d.className = 'mini-card' + (c.done ? ' done' : '');
-      d.textContent = (c.done ? '✓ ' : '◇ ') + c.title;
+      d.textContent = (c.done ? '✓ ' : '◇ ') + (typeof c.title === 'function' ? c.title() : c.title);
       cards.appendChild(d);
     }
     const ach = $('results-achievements');
@@ -416,12 +441,12 @@ export class UI {
     for (const a of v.achievements) {
       const p = document.createElement('p');
       p.className = 'ach-pop';
-      p.textContent = `🏅 Achievement unlocked: ${a.name} — ${a.desc}`;
+      p.textContent = '🏅 ' + T('Achievement unlocked: {name} — {desc}', { name: T(a.name), desc: T(a.desc) });
       ach.appendChild(p);
     }
-    $('results-compare').textContent = v.compareText || '';
-    $('btn-results-next').textContent = v.nextLabel;
-    this.live(`${v.headline}. Score ${v.total}, ${v.stars} stars. ${v.summary}`, false);
+    $('results-compare').textContent = typeof v.compareText === 'function' ? v.compareText() : (v.compareText ? T(v.compareText) : '');
+    $('btn-results-next').textContent = T(v.nextLabel);
+    if (!relabel) this.live(T('{headline}. Score {n}, {stars} stars. {summary}', { headline: T(v.headline), n: v.total, stars: v.stars, summary: typeof v.summary === 'function' ? v.summary() : v.summary }), false);
   }
 
   // -------------------------------------------------------------- journey
@@ -432,7 +457,7 @@ export class UI {
       const block = document.createElement('div');
       block.className = 'chapter-block';
       const h = document.createElement('h2');
-      h.textContent = `${ci + 1}. ${ch.title}`;
+      h.textContent = `${ci + 1}. ${T(ch.title)}`;
       block.appendChild(h);
       const grid = document.createElement('div');
       grid.className = 'chapter-grid';
@@ -447,8 +472,8 @@ export class UI {
         stars.className = 'st';
         stars.textContent = st.stars > 0 ? '★'.repeat(st.stars) : (st.mastery ? 'M' : '·');
         btn.append(num, stars);
-        btn.title = st.label + (st.locked ? ' (finish earlier stages to unlock)' : '');
-        btn.setAttribute('aria-label', `Stage ${st.index + 1}: ${st.label}${st.stars ? `, ${st.stars} stars` : ''}${st.locked ? ', locked' : ''}`);
+        btn.title = T(st.label) + (st.locked ? ' ' + T('(finish earlier stages to unlock)') : '');
+        btn.setAttribute('aria-label', T('Stage {n}: {name}', { n: st.index + 1, name: T(st.label) }) + (st.stars ? T(', {n} stars', { n: st.stars }) : '') + (st.locked ? T(', locked') : ''));
         btn.addEventListener('click', () => onPick(st.index));
         grid.appendChild(btn);
       });
@@ -464,7 +489,7 @@ export class UI {
     if (!scenes.length) {
       const p = document.createElement('p');
       p.className = 'fine-print';
-      p.textContent = 'No saved scenes yet — your finished stories will appear here.';
+      p.textContent = T('No saved scenes yet — your finished stories will appear here.');
       list.appendChild(p);
     }
     for (const s of scenes) {
@@ -480,12 +505,12 @@ export class UI {
       const mid = document.createElement('div');
       const title = document.createElement('strong'); title.textContent = s.label;
       const meta = document.createElement('div'); meta.className = 'scene-meta';
-      meta.textContent = `${s.date} · ${s.beats.length} moments · ${s.cardsDone}/${s.cardsTotal} cards · score ${s.score}`;
+      meta.textContent = T('{date} · {n} moments · {done}/{total} cards · score {score}', { date: s.date, n: s.beats.length, done: s.cardsDone, total: s.cardsTotal, score: s.score });
       const beats = document.createElement('div'); beats.className = 'scene-meta';
-      beats.textContent = s.beats.length ? s.beats.join(', ') : 'quiet house';
+      beats.textContent = s.beats.length ? s.beats.map((b) => T(b)).join(', ') : T('quiet house');
       mid.append(title, meta, beats);
       const del = document.createElement('button');
-      del.className = 'text-btn'; del.type = 'button'; del.textContent = 'Delete';
+      del.className = 'text-btn'; del.type = 'button'; del.textContent = T('Delete');
       del.addEventListener('click', () => this.h.onDeleteScene(s.id));
       card.append(mid, del);
       list.appendChild(card);
@@ -495,7 +520,7 @@ export class UI {
     for (const row of mastery) {
       const div = document.createElement('div');
       div.className = 'mastery-row';
-      const l = document.createElement('span'); l.textContent = row[0];
+      const l = document.createElement('span'); l.textContent = T(row[0]);
       const r = document.createElement('span'); r.textContent = row[1];
       div.append(l, r);
       mt.appendChild(div);
@@ -506,9 +531,9 @@ export class UI {
       const li = document.createElement('li');
       li.className = a.unlocked ? '' : 'locked';
       const n = document.createElement('span'); n.className = 'ach-name';
-      n.textContent = (a.unlocked ? '🏅 ' : '🔒 ') + a.name;
+      n.textContent = (a.unlocked ? '🏅 ' : '🔒 ') + T(a.name);
       const d = document.createElement('span'); d.className = 'ach-desc';
-      d.textContent = a.desc + (a.unlocked && a.at ? ` — unlocked ${new Date(a.at).toLocaleDateString()}` : '');
+      d.textContent = T(a.desc) + (a.unlocked && a.at ? ' — ' + T('unlocked {date}', { date: new Date(a.at).toLocaleDateString(document.documentElement.lang || undefined) }) : '');
       li.append(n, d);
       al.appendChild(li);
     }
@@ -521,13 +546,13 @@ export class UI {
     for (const card of ruleCards) {
       const div = document.createElement('div');
       div.className = 'rule-card';
-      const h = document.createElement('h3'); h.textContent = card.title;
-      const p = document.createElement('p'); p.textContent = card.text;
+      const h = document.createElement('h3'); h.textContent = T(card.title);
+      const p = document.createElement('p'); p.textContent = typeof card.text === 'function' ? card.text() : T(card.text);
       div.append(h, p);
       if (card.example) {
         const ex = document.createElement('p');
         ex.className = 'fine-print';
-        ex.textContent = 'Try: ' + card.example;
+        ex.textContent = T('Try: {example}', { example: typeof card.example === 'function' ? card.example() : T(card.example) });
         div.appendChild(ex);
       }
       hc.appendChild(div);
@@ -537,10 +562,10 @@ export class UI {
     for (const [action, keys] of bindings) {
       const div = document.createElement('div');
       div.className = 'binding-row';
-      const a = document.createElement('span'); a.textContent = action;
+      const a = document.createElement('span'); a.textContent = T(action);
       const k = document.createElement('span');
       for (const key of keys) {
-        const kbd = document.createElement('kbd'); kbd.textContent = key;
+        const kbd = document.createElement('kbd'); kbd.textContent = T(key);
         k.appendChild(kbd);
         k.append(' ');
       }
@@ -598,6 +623,7 @@ export class UI {
   bindingsEditor(settings, onCapture) {
     const box = $('bindings-editor');
     box.textContent = '';
+    this._bindingsArgs = [settings, onCapture];
     const rows = [
       ['confirm', 'Confirm / place'], ['cancel', 'Cancel'], ['pause', 'Pause'],
       ['undo', 'Undo'], ['hint', 'Hint'], ['camera', 'Camera reset'], ['mute', 'Mute'],
@@ -605,12 +631,12 @@ export class UI {
     for (const [action, label] of rows) {
       const div = document.createElement('div');
       div.className = 'binding-row';
-      const a = document.createElement('span'); a.textContent = label;
+      const a = document.createElement('span'); a.textContent = T(label);
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'menu-btn small';
       btn.textContent = (settings.bindings[action] || []).map(codeLabel).join(' / ') || '—';
       btn.addEventListener('click', () => {
-        btn.textContent = 'press a key…';
+        btn.textContent = T('press a key…');
         onCapture(action, (keys) => { btn.textContent = (keys || []).map(codeLabel).join(' / ') || '—'; });
       });
       div.append(a, btn);
@@ -620,13 +646,13 @@ export class UI {
     for (const [action, label] of [['confirm', 'Gamepad confirm'], ['cancel', 'Gamepad cancel'], ['interact', 'Gamepad interact'], ['hint', 'Gamepad hint'], ['undo', 'Gamepad undo'], ['pause', 'Gamepad pause']]) {
       const div = document.createElement('div');
       div.className = 'binding-row';
-      const a = document.createElement('span'); a.textContent = label;
+      const a = document.createElement('span'); a.textContent = T(label);
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'menu-btn small';
-      btn.textContent = 'button ' + (settings.gamepad[action] ?? '—');
+      btn.textContent = T('button {n}', { n: settings.gamepad[action] ?? '—' });
       btn.addEventListener('click', () => {
-        btn.textContent = 'press a gamepad button…';
-        onCapture('pad:' + action, (v) => { btn.textContent = 'button ' + v; });
+        btn.textContent = T('press a gamepad button…');
+        onCapture('pad:' + action, (v) => { btn.textContent = T('button {n}', { n: v }); });
       });
       div.append(a, btn);
       box.appendChild(div);
@@ -641,22 +667,22 @@ export class UI {
   _fillMirror(nav, state, selectionKey, onAction) {
     nav.textContent = '';
     const h = document.createElement('h3');
-    h.textContent = 'The house, as text';
+    h.textContent = T('The house, as text');
     nav.appendChild(h);
     if (!state) return;
     for (const room of state.rooms) {
       const rh = document.createElement('h3');
-      rh.textContent = `${room.name} (${room.type})`;
+      rh.textContent = `${roomName(room)} (${roomTypeName(room.type)})`;
       nav.appendChild(rh);
       const ul = document.createElement('ul');
       room.slots.forEach((itemKey, i) => {
         const li = document.createElement('li');
         const btn = document.createElement('button');
         btn.type = 'button';
-        const itemName = itemKey ? state.items[itemKey].name : 'empty spot';
+        const name = itemKey ? itemName(itemKey) : T('empty spot');
         btn.textContent = selectionKey && !itemKey
-          ? `Place ${state.items[selectionKey].name} here (spot ${i + 1})`
-          : `${itemName} — spot ${i + 1}`;
+          ? T('Place {name} here (spot {n})', { name: itemName(selectionKey), n: i + 1 })
+          : T('{name} — spot {n}', { name, n: i + 1 });
         btn.setAttribute('aria-current', String(itemKey === selectionKey));
         btn.dataset.focusKey = `slot:${room.id}:${i}`;
         btn.addEventListener('click', () => onAction({ room: room.id, slot: i, item: itemKey }));
@@ -665,14 +691,14 @@ export class UI {
       });
       nav.appendChild(ul);
     }
-    const th = document.createElement('h3'); th.textContent = 'Tray';
+    const th = document.createElement('h3'); th.textContent = T('Tray');
     nav.appendChild(th);
     const ul = document.createElement('ul');
     for (const key of state.tray) {
       const li = document.createElement('li');
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = `Select ${state.items[key].name}`;
+      btn.textContent = T('Select {name}', { name: itemName(key) });
       btn.setAttribute('aria-current', String(key === selectionKey));
       btn.dataset.focusKey = `mirror-tray:${key}`;
       btn.addEventListener('click', () => onAction({ tray: key }));

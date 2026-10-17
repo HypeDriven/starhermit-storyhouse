@@ -1,6 +1,6 @@
 // gfx-i18n.js — strings for the Graphics settings panel in every supported
-// locale. The rest of the game is English-only; the panel picks its locale
-// from navigator.language (exact tag, then language, then en-US).
+// locale. The panel picks its locale
+// from the game language (i18n.js currentLang(), passed by gfx-panel.js).
 
 const en = {
   quality: 'Quality', auto: 'Auto (detected: {tier})', renderScale: 'Render scale',

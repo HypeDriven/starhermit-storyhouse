@@ -31,7 +31,7 @@ function setup(hash, hostname = 'storyhouse-test.starhermit.com') {
     const json = (o, status = 200) => new Response(JSON.stringify(o), { status });
     if (path.endsWith('/profile')) return json({ nickname: 'Mabel', username: 'mabel99' });
     if (path.includes('/cloud-saves/')) {
-      if (init.method === 'PUT') { store.set(path, JSON.parse(init.body).dataBase64); return new Response(null, { status: 204 }); }
+      if (init.method === 'PUT') { store.set(path, JSON.parse(init.body).dataBase64); return json({ etag: '"v' + calls.length + '"' }); }
       return store.has(path) ? new Response(Buffer.from(store.get(path), 'base64')) : new Response(null, { status: 404 });
     }
     if (path.endsWith('/settings')) return init.method === 'PATCH' ? new Response(null, { status: 204 }) : json({ settings: { music: 12 } });
@@ -128,8 +128,83 @@ test('standalone on localhost: no own-server probes (no /api/v1/config)', async 
 });
 
 test('sign-in is offered on the platform host without a token', async () => {
-  const { sdk, calls } = setup('');
+  // canSignIn() is only true on a game's UUID host (<uuid>.starhermit.com).
+  const { sdk, calls } = setup('', '0b9d6f2e-3c4a-4e5b-9a7c-1d2e3f405162.starhermit.com');
   const p = await new Platform(sdk).init();
   assert.equal(p.canSignIn(), true);
   assert.equal(calls.length, 0);
+});
+
+test('mergeProgress / mergeScenes keep both devices\' progress', async () => {
+  const { mergeProgress, mergeScenes, defaultProgress } = await import('../src/persist.js');
+  const a = { ...defaultProgress(), journey: { j1: { stars: 2, score: 40 } }, lessons: { l1: true }, cardsCollected: ['x/1'], beatsSeen: ['snack'],
+    achievements: { 'first-scene': 20 }, daysPlayed: ['2026-10-02'], lastDaily: { date: '2026-10-02', total: 30 }, bestScores: { j1: 40 }, scenesCount: 2 };
+  const b = { ...defaultProgress(), journey: { j1: { stars: 1, score: 55 }, j2: { stars: 3, score: 70 } }, lessons: { l2: true }, cardsCollected: ['y/2'], beatsSeen: ['melody'],
+    achievements: { 'first-scene': 10, curator: 30 }, daysPlayed: ['2026-10-01'], lastDaily: { date: '2026-10-01', total: 90 }, bestScores: { j1: 55, j2: 70 }, scenesCount: 5 };
+  const m = mergeProgress(a, b);
+  assert.deepEqual(m.journey, { j1: { stars: 2, score: 55 }, j2: { stars: 3, score: 70 } });
+  assert.deepEqual(m.lessons, { l1: true, l2: true });
+  assert.deepEqual([...m.cardsCollected].sort(), ['x/1', 'y/2']);
+  assert.deepEqual([...m.beatsSeen].sort(), ['melody', 'snack']);
+  assert.deepEqual(m.achievements, { 'first-scene': 10, curator: 30 });
+  assert.deepEqual(m.daysPlayed, ['2026-10-01', '2026-10-02']);
+  assert.deepEqual(m.lastDaily, { date: '2026-10-02', total: 30 });
+  assert.deepEqual(m.bestScores, { j1: 55, j2: 70 });
+  assert.equal(m.scenesCount, 5);
+  const sc = mergeScenes([{ id: 'a', savedAt: 1 }, { id: 'b', savedAt: 3 }], [{ id: 'b', savedAt: 3 }, { id: 'c', savedAt: 2 }]);
+  assert.deepEqual(sc.map((s) => s.id), ['b', 'c', 'a']);
+});
+
+test('save conflict: a refused write reloads, merges and saves on top of the other device', async () => {
+  const slot = '/api/v1/me/cloud-saves/' + encodeURIComponent('game:storyhouse-test');
+  const zipOf = async (doc) => {
+    let bytes = null;
+    const loc = { hash: '#game_token=' + JWT, search: '', pathname: '/', hostname: 'h', href: 'https://h/' };
+    const z = SDK.create({ window: { location: loc, history: { replaceState() {} } }, fetch: async (u, init = {}) => {
+      if (init.method === 'PUT') { bytes = JSON.parse(init.body).dataBase64; return new Response(JSON.stringify({ etag: '"z"' }), { status: 200 }); }
+      return new Response(null, { status: 404 });
+    }, setTimeout: () => 0, clearTimeout() {} });
+    z.init();
+    await z.writeSave(JSON.stringify(doc));
+    return bytes;
+  };
+  let stored = null, etag = null;
+  const puts = [];
+  const fetch = async (url, init = {}) => {
+    const method = init.method || 'GET', path = url.split('?')[0];
+    const json = (o, status = 200) => new Response(JSON.stringify(o), { status });
+    if (path === slot + '/info') return json({ exists: !!stored, etag });
+    if (path === slot && method === 'GET') return new Response(Buffer.from(stored, 'base64'));
+    if (path === slot && method === 'PUT') {
+      const match = init.headers['If-Match'];
+      puts.push(match || init.headers['If-None-Match']);
+      if ((match && match !== etag) || (!match && stored)) return json({ error: 'precondition_failed' }, 412);
+      stored = JSON.parse(init.body).dataBase64;
+      etag = '"v' + puts.length + '"';
+      return json({ etag });
+    }
+    if (path.endsWith('/profile')) return json({ nickname: 'Mabel' });
+    return new Response(null, { status: 404 });
+  };
+  const location = { hash: '#game_token=' + JWT, search: '', pathname: '/index.html', hostname: 'h', href: 'https://h/index.html' };
+  globalThis.location = location;
+  globalThis.localStorage = memStorage();
+  const sdk = SDK.create({ window: { location, history: { replaceState() {} } }, fetch, setTimeout: () => 0, clearTimeout() {} });
+  const p = await new Platform(sdk).init();
+  assert.equal(await p.loadCloudSave(), null);           // empty slot: later writes are conditional
+  const { sealProgress, defaultProgress } = await import('../src/persist.js');
+  stored = await zipOf({ v: 2, progress: sealProgress({ ...defaultProgress(), journey: { j9: { stars: 3, score: 90 } } }), scenes: [{ id: 'other', savedAt: 5 }] });
+  etag = '"other"';
+  let merged = false;
+  p.onConflictMerged = () => { merged = true; };
+  p.saveProgress({ ...p.loadProgress(), journey: { j1: { stars: 1, score: 10 } } });
+  await sdk.flushSave();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(merged, 'conflict merged');
+  assert.deepEqual(Object.keys(p.loadProgress().journey).sort(), ['j1', 'j9'], 'both devices kept');
+  assert.deepEqual(p.loadScenes().map((s) => s.id), ['other']);
+  assert.equal(sdk.saveConflicted(), false);
+  await sdk.flushSave();
+  assert.equal(puts.at(-1), '"other"', 'the merge is written on top of the reloaded version');
+  sdk.signOut();
 });
