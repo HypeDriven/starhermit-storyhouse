@@ -176,6 +176,7 @@ async function graphicsPass(page, name, { fromPause }) {
   await page.waitForFunction(() => !/bloom/.test(document.getElementById('gfx-summary').textContent));
   const summary = (await page.textContent('#gfx-summary')).trim();
   if (!/\d+×\d+ px/.test(summary)) throw new Error(`summary lacks pixel size: "${summary}"`);
+  if (!/ · Level 0 · /.test(summary)) throw new Error(`summary lacks the hardware level: "${summary}"`);
   // The panel fits the viewport width (no horizontal cut-off).
   const overflow = await page.evaluate(() => {
     const r = document.getElementById('gfx-panel').getBoundingClientRect();

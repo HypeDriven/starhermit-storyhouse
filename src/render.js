@@ -14,10 +14,10 @@ import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CameraRig, FRAMING } from './render/camera.js';
 import { buildHouse, ROOM_D } from './render/house.js';
-import { makePiece, makeGhost, makeOutline } from './render/pieces.js';
+import { makePiece, makeGhost, makeOutline, setPieceBudget } from './render/pieces.js';
 import { VfxPool } from './render/vfx.js';
 import { RngStream, deriveSeed } from './rng.js';
-import { detectPreset, describe, resolve, SHADOW_MAP, PARTICLE_CAP } from './gfx.js';
+import { detectLevel, presetForLevel, describe, resolve, SHADOW_MAP, PARTICLE_MAX, MOTE_MAX, particleCap } from './gfx.js';
 
 export const LAYERS = { ENV: 0, GAME: 1, GHOST: 2, VFX: 3 };
 
@@ -46,7 +46,16 @@ const GradeShader = {
 // Bloom works on HDR scene colour before tone mapping: lit walls peak near
 // 1.2, so only emissive accents (lamp shades, window glow, sparks) pass.
 const BLOOM = { strength: 0.5, radius: 0.5, threshold: 1.5 };
-const MOTE_COUNT = 140;
+const MOTE_COUNT = MOTE_MAX; // built at the largest budget; the preset draws budget.motes of them
+
+// Run a post pass at a fraction of the frame: EffectComposer.addPass/setSize hand every pass the full
+// frame size, so the pass's own setSize applies the budget's scale (half-res bloom/GTAO below Ultra).
+function atScale(pass, k) {
+  if (!(k < 1)) return pass;
+  const setSize = pass.setSize.bind(pass);
+  pass.setSize = (w, h) => setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+  return pass;
+}
 
 const SELECT_COLOR = 0xffd166;
 const LEGAL_COLOR = 0xf2e8d0;
@@ -120,7 +129,14 @@ export class Stage {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gpu = Stage._gpuName(this.renderer);
     const mobile = !!(window.matchMedia?.('(pointer: coarse)').matches && !window.matchMedia?.('(any-pointer: fine)').matches);
-    this.detected = detectPreset(this.gpu, { mobile });
+    // StarHermit hardware level (src/gpu-level.js): renderer string + device facts (phone/tablet, cores, memory).
+    let sys = { mobile, webgl2: !!this.renderer.capabilities.isWebGL2 };
+    try {
+      const SG = globalThis.StarHermitGpu;
+      if (SG) { const d = SG.detectSystem(); sys = { ...sys, mobile: mobile || d.mobile, touch: d.touch, screen: d.screen, cores: d.cores, memoryGb: d.memoryGb, astc: d.astc }; }
+    } catch { /* defaults */ }
+    this.gpuLevel = detectLevel(this.gpu, sys);
+    this.detected = presetForLevel(this.gpuLevel);
     this.composer = null; this.postKey = null; this._envTex = null;
 
     this.scene = new THREE.Scene();
@@ -129,7 +145,7 @@ export class Stage {
     this.rig.camera.layers.enable(LAYERS.GHOST);
     this.rig.camera.layers.enable(LAYERS.VFX);
 
-    this.vfx = new VfxPool(this.scene, PARTICLE_CAP.high);
+    this.vfx = new VfxPool(this.scene, PARTICLE_MAX);
     this._buildMarkers();
     this._buildMotes();
     // init() runs again after a context restore: the canvas keeps its listeners
@@ -178,9 +194,19 @@ export class Stage {
   setGraphics(saved = {}) {
     this.gfxSaved = saved || {};
     if (!this.renderer) return;
-    const prev = this.q;
-    const g = resolve(this.gfxSaved, this.detected);
+    let prev = this.q;
+    const g = resolve(this.gfxSaved, this.detected, this.gpuLevel);
     this.q = g;
+    // Another shading model or mesh detail rebuilds the session's scene from retained content (the
+    // selection is restored); spark and mote counts apply live below.
+    const assets = (q) => q?.budget && [q.budget.material, q.budget.seg].join('|');
+    if (this.content && this._builtAssets && this._builtAssets !== assets(g)) {
+      const sel = this._selected, legal = this._legal, backdrop = this._backdrop;
+      this.startSession({ content: this.content, theme: this.theme, state: this._lastState });
+      this._backdrop = backdrop;
+      if (sel) this.setSelection(sel, legal);
+      prev = g; // the house was just built at this setting
+    }
     const size = SHADOW_MAP[g.shadows];
     this.renderer.shadowMap.enabled = size > 0;
     if (this.keyLight) {
@@ -191,7 +217,9 @@ export class Stage {
         this.keyLight.shadow.map = null;
       }
     }
-    this.vfx?.setCap(PARTICLE_CAP[g.particles]);
+    this.vfx?.setCap(particleCap(g));
+    this._moteCount = Math.min(MOTE_COUNT, g.budget.motes);
+    this._motes?.geometry.setDrawRange(0, this._moteCount);
     // With bloom on, sparks are pushed into HDR so they glow.
     if (this.vfx) this.vfx.points.material.color.setScalar(g.bloom === 'on' ? 1.9 : 1);
     this._applyReflections();
@@ -219,6 +247,7 @@ export class Stage {
     const px = [Math.round(this.size[0] * ratio), Math.round(this.size[1] * ratio)];
     return {
       gpu: this.gpu,
+      level: this.gpuLevel,
       detected: this.detected,
       resolved: this.q,
       summary: describe(this.q, px, words),
@@ -266,7 +295,7 @@ export class Stage {
       this.house.group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
       this.house.envMat.dispose();
       this.house.groundMat?.dispose();
-      this.house = buildHouse(this.content.layout, this.theme, detailed ? 1 : 0);
+      this.house = buildHouse(this.content.layout, this.theme, detailed ? 1 : 0, this.q.budget);
       this.house.detailUniform.value = detailed ? 1 : 0;
       this.scene.add(this.house.group);
     }
@@ -290,7 +319,7 @@ export class Stage {
 
   _postKey(w, h) {
     const g = this.q;
-    return g.post ? [g.ao, g.bloom, g.grade, g.antialias, w, h, this.pixelRatio].join('|') : 'none';
+    return g.post ? [g.ao, g.bloom, g.grade, g.antialias, g.budget.bloomRes, g.budget.aoRes, w, h, this.pixelRatio].join('|') : 'none';
   }
 
   _buildPost(w, h) {
@@ -314,9 +343,9 @@ export class Stage {
         ao.blendIntensity = 0.75;
         ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1.0, samples: hi ? 16 : 8 });
         ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: hi ? 6 : 4, rings: 2, samples: hi ? 16 : 8 });
-        composer.addPass(ao);
+        composer.addPass(atScale(ao, g.budget.aoRes));
       }
-      if (g.bloom === 'on') composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), BLOOM.strength, BLOOM.radius, BLOOM.threshold));
+      if (g.bloom === 'on') composer.addPass(atScale(new UnrealBloomPass(new THREE.Vector2(w, h), BLOOM.strength, BLOOM.radius, BLOOM.threshold), g.budget.bloomRes));
       composer.addPass(new OutputPass());
       if (g.grade === 'on') composer.addPass(new ShaderPass(GradeShader));
       if (g.antialias === 'smaa') composer.addPass(new SMAAPass(pw, ph));
@@ -409,7 +438,7 @@ export class Stage {
     const hw = this.house.houseW / 2, hh = this.house.houseH, t = this.time;
     const p = this._motePos, sd = this._moteSeed;
     const span = Math.max(0.5, hh - 0.4);
-    for (let i = 0; i < MOTE_COUNT; i++) {
+    for (let i = 0, n = this._moteCount ?? MOTE_COUNT; i < n; i++) {
       const a = sd[i * 4], b = sd[i * 4 + 1], c = sd[i * 4 + 2], d = sd[i * 4 + 3];
       p[i * 3] = (a * 2 - 1) * hw * 0.92 + Math.sin(t * (0.13 + c * 0.1) + d * 6.28) * 0.35;
       p[i * 3 + 1] = 0.25 + ((b * span + t * (0.04 + c * 0.05)) % span);
@@ -458,7 +487,9 @@ export class Stage {
     this.scene.add(this.fill);
 
     // House ----------------------------------------------------------------
-    this.house = buildHouse(content.layout, theme, q.detail === 'detailed' ? 1 : 0);
+    this._builtAssets = [q.budget.material, q.budget.seg].join('|');
+    setPieceBudget(q.budget);
+    this.house = buildHouse(content.layout, theme, q.detail === 'detailed' ? 1 : 0, q.budget);
     this.house.detailUniform.value = q.detail === 'detailed' ? 1 : 0;
     this.scene.add(this.house.group);
     const ext = this.house.houseExtent;
@@ -474,7 +505,7 @@ export class Stage {
     const trayZ = ROOM_D / 2 + 2.1;
     const plankParts = new THREE.Mesh(
       new THREE.BoxGeometry(trayW, 0.16, 1.3),
-      new THREE.MeshStandardMaterial({ color: theme.trim, roughness: 0.9 }),
+      q.budget.material === 'lambert' ? new THREE.MeshLambertMaterial({ color: theme.trim }) : new THREE.MeshStandardMaterial({ color: theme.trim, roughness: 0.9 }),
     );
     plankParts.position.set(0, -0.08, trayZ);
     plankParts.receiveShadow = true;
@@ -702,6 +733,7 @@ export class Stage {
   // ------------------------------------------------------------- selection
   setSelection(itemKey, legalSlots = []) {
     this._selected = itemKey;
+    this._legal = legalSlots;
     // Clean previous ghost/outline.
     if (this._ghost) { this.scene.remove(this._ghost); this._ghost = null; }
     if (this._outline) { this.scene.remove(this._outline); this._outline = null; }

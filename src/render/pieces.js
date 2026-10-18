@@ -6,19 +6,55 @@ import * as THREE from 'three';
 
 const LAYER_GAME = 1;
 
-// PBR materials: `coat` adds a clearcoat layer for glazed / lacquered pieces.
-// envMapIntensity keeps image-based light a subtle fill, not a wash.
+// The preset's piece budget (gfx.js BUDGETS): shading model and curved-mesh segment multiplier. Set by
+// the stage before it builds a session's pieces.
+const BUDGET = { material: 'physical', seg: 1 };
+export function setPieceBudget(b) {
+  BUDGET.material = b?.material || 'physical';
+  BUDGET.seg = b?.seg || 1;
+}
+
+// Materials per budget: Lambert (Low), Standard PBR (Balanced) or Physical, where `coat` adds a
+// clearcoat layer for glazed / lacquered pieces (High, Ultra). envMapIntensity keeps image-based light a
+// subtle fill, not a wash.
 function mat(color, opts = {}) {
+  const emissive = opts.emissive ?? 0x000000, emissiveIntensity = opts.ei ?? 1;
+  if (BUDGET.material === 'lambert') return new THREE.MeshLambertMaterial({ color, emissive, emissiveIntensity });
   const params = {
-    color, roughness: opts.rough ?? 0.75, metalness: opts.metal ?? 0.05,
-    emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1,
+    color, roughness: opts.rough ?? 0.75, metalness: opts.metal ?? 0.05, emissive, emissiveIntensity,
     envMapIntensity: opts.env ?? (opts.metal > 0.3 ? 0.9 : 0.45),
   };
-  if (opts.coat) return new THREE.MeshPhysicalMaterial({ ...params, clearcoat: opts.coat, clearcoatRoughness: opts.coatRough ?? 0.18 });
+  if (opts.coat && BUDGET.material === 'physical') return new THREE.MeshPhysicalMaterial({ ...params, clearcoat: opts.coat, clearcoatRoughness: opts.coatRough ?? 0.18 });
   return new THREE.MeshStandardMaterial(params);
 }
+
+// Curved geometry rebuilt at the budget's segment multiplier from its own parameters (authored counts
+// at ×1). Deliberately faceted shapes (fewer than 8 segments: cone ears, triangle props) keep theirs.
+const _lod = new WeakMap();
+function lod(geo) {
+  const k = BUDGET.seg;
+  if (k === 1 || !geo.parameters) return geo;
+  if (_lod.has(geo)) return _lod.get(geo);
+  const P = geo.parameters;
+  const n = (v, min = 6) => (v < 8 ? v : Math.max(min, Math.round(v * k)));
+  let out = geo;
+  switch (geo.type) {
+    case 'SphereGeometry': out = new THREE.SphereGeometry(P.radius, n(P.widthSegments), n(P.heightSegments, 4), P.phiStart, P.phiLength, P.thetaStart, P.thetaLength); break;
+    case 'CylinderGeometry': out = new THREE.CylinderGeometry(P.radiusTop, P.radiusBottom, P.height, n(P.radialSegments), P.heightSegments, P.openEnded, P.thetaStart, P.thetaLength); break;
+    case 'ConeGeometry': out = new THREE.ConeGeometry(P.radius, P.height, n(P.radialSegments), P.heightSegments, P.openEnded, P.thetaStart, P.thetaLength); break;
+    case 'TorusGeometry': out = new THREE.TorusGeometry(P.radius, P.tube, n(P.radialSegments, 4), n(P.tubularSegments), P.arc); break;
+    case 'LatheGeometry': out = new THREE.LatheGeometry(P.points, n(P.segments), P.phiStart, P.phiLength); break;
+    case 'TubeGeometry': out = new THREE.TubeGeometry(P.path, n(P.tubularSegments), P.radius, P.radialSegments, P.closed); break;
+    case 'CircleGeometry': out = new THREE.CircleGeometry(P.radius, n(P.segments, 8), P.thetaStart, P.thetaLength); break;
+    default: return geo;
+  }
+  geo.dispose();
+  _lod.set(geo, out);
+  return out;
+}
+
 function mesh(geo, material, x = 0, y = 0, z = 0, rot = null, scale = null) {
-  const m = new THREE.Mesh(geo, material);
+  const m = new THREE.Mesh(lod(geo), material);
   m.position.set(x, y, z);
   if (rot) m.rotation.set(rot.x || 0, rot.y || 0, rot.z || 0);
   if (scale) m.scale.set(scale.x ?? 1, scale.y ?? 1, scale.z ?? 1);
@@ -43,7 +79,7 @@ function addEyes(group, y, spread, size = 0.045, z = 0.22) {
 }
 function contactShadow(group, r = 0.34) {
   const s = new THREE.Mesh(
-    new THREE.CircleGeometry(r, 20),
+    lod(new THREE.CircleGeometry(r, 20)),
     new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false }),
   );
   s.rotation.x = -Math.PI / 2;

@@ -1,6 +1,6 @@
 // gfx-panel.js — the Graphics controls inside Settings: quality preset, render
 // scale, one override per effect, adaptive resolution, frame-rate readout and
-// a "GPU · cost · W×H px" summary. Every control applies immediately; stable
+// a "GPU · Level N · cost · W×H px" summary. Every control applies immediately; stable
 // ids / data attributes let tests drive them.
 import { CATEGORIES, PRESETS, choosePreset, presetTier, defaultGfx } from './gfx.js';
 import { gfxStrings, fmt } from './gfx-i18n.js';
@@ -141,7 +141,7 @@ export class GraphicsPanel {
     this.adaptive.checked = s.adaptive !== false;
     this.fps.checked = !!s.show_fps;
     if (info) {
-      this.summary.textContent = `${info.gpu || t.unknownGpu} · ${info.summary}`;
+      this.summary.textContent = [info.gpu || t.unknownGpu, info.level != null ? fmt(t.level, { n: info.level }) : null, info.summary].filter(Boolean).join(' · ');
       this.note.hidden = !info.postFailed;
     } else {
       this.summary.textContent = '';

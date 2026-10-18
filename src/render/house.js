@@ -46,7 +46,11 @@ function box(w, h, d, x, y, z, color, rot = null) {
   matrix.setPosition(x, y, z);
   return { geo: new THREE.BoxGeometry(w, h, d), color, matrix };
 }
+// Curved dressing at the preset budget's segment multiplier (set per buildHouse call).
+let SEG = 1;
+const sseg = (n, min = 6) => Math.max(min, Math.round(n * SEG));
 function cyl(rt, rb, h, seg, x, y, z, color, rot = null) {
+  seg = sseg(seg, Math.min(seg, 5));
   const matrix = new THREE.Matrix4();
   if (rot) matrix.makeRotationFromEuler(new THREE.Euler(rot.x || 0, rot.y || 0, rot.z || 0));
   matrix.setPosition(x, y, z);
@@ -55,7 +59,7 @@ function cyl(rt, rb, h, seg, x, y, z, color, rot = null) {
 function sph(r, x, y, z, color, scaleY = 1) {
   const matrix = new THREE.Matrix4().makeScale(1, scaleY, 1);
   matrix.setPosition(x, y, z);
-  return { geo: new THREE.SphereGeometry(r, 10, 8), color, matrix };
+  return { geo: new THREE.SphereGeometry(r, sseg(10), sseg(8, 4)), color, matrix };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,13 +203,18 @@ function addSurfaceDetail(material, uniforms, keys) {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += diffuseColor.rgb * shGlow * 0.9;`);
   };
-  material.customProgramCacheKey = () => 'storyhouse-detail-' + keys;
+  material.customProgramCacheKey = () => 'storyhouse-detail-' + keys + '-' + material.type;
 }
 
 // ---------------------------------------------------------------------------
 // House assembly
 // ---------------------------------------------------------------------------
-export function buildHouse(layout, theme, detail = 1) {
+export function buildHouse(layout, theme, detail = 1, budget = {}) {
+  SEG = budget.seg || 1;
+  // House shading per preset budget: Lambert on Low, Standard PBR above (the surface-detail patterns
+  // hook into chunks both share).
+  const Lit = budget.material === 'lambert' ? THREE.MeshLambertMaterial : THREE.MeshStandardMaterial;
+  const lit = (p) => (budget.material === 'lambert' ? new Lit({ color: p.color ?? 0xffffff, vertexColors: !!p.vertexColors }) : new Lit(p));
   const P = {
     wall: theme.wall, wallSide: theme.wallSide, floor: theme.floor,
     trim: theme.trim, accent: theme.accent, roof: theme.roof,
@@ -222,7 +231,7 @@ export function buildHouse(layout, theme, detail = 1) {
   const houseH = rows * (ROOM_H + ROOM_GAP) - ROOM_GAP;
   const x0 = -houseW / 2 + ROOM_W / 2;
 
-  const envMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0.02 });
+  const envMat = lit({ vertexColors: true, roughness: 0.86, metalness: 0.02 });
   const detailUniform = { value: detail > 0 ? 1 : 0 };
   const lin = (hex) => new THREE.Color(hex); // Color() converts sRGB hex to linear, matching vertex colours
   addSurfaceDetail(envMat, {
@@ -294,12 +303,12 @@ export function buildHouse(layout, theme, detail = 1) {
 
   // Ground.
   const extent = Math.max(houseW, houseH) * 0.5 + 4;
-  const groundMat = new THREE.MeshStandardMaterial({ color: P.ground, roughness: 1 });
+  const groundMat = lit({ color: P.ground, roughness: 1 });
   addSurfaceDetail(groundMat, {
     uDetail: detailUniform, uWall: { value: new THREE.Color() }, uFloor: { value: new THREE.Color() },
     uPane: { value: new THREE.Color() }, uGround: { value: 1 },
   }, 'ground');
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(extent * 1.6, 40), groundMat);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(extent * 1.6, sseg(40, 16)), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.22;
   ground.receiveShadow = true;

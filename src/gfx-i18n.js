@@ -3,7 +3,7 @@
 // from the game language (i18n.js currentLang(), passed by gfx-panel.js).
 
 const en = {
-  quality: 'Quality', auto: 'Auto (detected: {tier})', renderScale: 'Render scale',
+  quality: 'Quality', level: 'Level {n}', auto: 'Auto (detected: {tier})', renderScale: 'Render scale',
   fromPreset: 'From preset ({tier})', adaptive: 'Adaptive resolution', showFps: 'Show frame rate',
   postFailed: 'Post-processing is unavailable on this device, so the house is drawn without it.',
   unknownGpu: 'unknown GPU', effects: 'Effects',
@@ -23,7 +23,7 @@ const en = {
 const enUS = { ...en, cats: { ...en.cats, grade: 'Color grade' } };
 
 const es = {
-  quality: 'Calidad', auto: 'Automática (detectada: {tier})', renderScale: 'Escala de renderizado',
+  quality: 'Calidad', level: 'Nivel {n}', auto: 'Automática (detectada: {tier})', renderScale: 'Escala de renderizado',
   fromPreset: 'Según el ajuste ({tier})', adaptive: 'Resolución adaptativa', showFps: 'Mostrar fotogramas por segundo',
   postFailed: 'El posprocesado no está disponible en este dispositivo; la casa se dibuja sin él.',
   unknownGpu: 'GPU desconocida', effects: 'Efectos',
@@ -42,7 +42,7 @@ const es = {
 const es419 = { ...es, cats: { ...es.cats, antialias: 'Antialiasing' }, sum: { ...es.sum, noAa: 'sin antialiasing' } };
 
 const de = {
-  quality: 'Qualität', auto: 'Automatisch (erkannt: {tier})', renderScale: 'Renderskalierung',
+  quality: 'Qualität', level: 'Stufe {n}', auto: 'Automatisch (erkannt: {tier})', renderScale: 'Renderskalierung',
   fromPreset: 'Aus Voreinstellung ({tier})', adaptive: 'Adaptive Auflösung', showFps: 'Bildrate anzeigen',
   postFailed: 'Nachbearbeitung ist auf diesem Gerät nicht verfügbar; das Haus wird ohne sie gezeichnet.',
   unknownGpu: 'unbekannte GPU', effects: 'Effekte',
@@ -60,7 +60,7 @@ const de = {
 };
 
 const fr = {
-  quality: 'Qualité', auto: 'Automatique (détectée : {tier})', renderScale: 'Échelle de rendu',
+  quality: 'Qualité', level: 'Niveau {n}', auto: 'Automatique (détectée : {tier})', renderScale: 'Échelle de rendu',
   fromPreset: 'Selon le préréglage ({tier})', adaptive: 'Résolution adaptative', showFps: 'Afficher les images par seconde',
   postFailed: 'Le post-traitement n’est pas disponible sur cet appareil ; la maison est dessinée sans lui.',
   unknownGpu: 'GPU inconnu', effects: 'Effets',
@@ -79,7 +79,7 @@ const fr = {
 const frCA = { ...fr, cats: { ...fr.cats, antialias: 'Antialiasage' }, sum: { ...fr.sum, noAa: 'sans antialiasage' } };
 
 const pt = {
-  quality: 'Qualidade', auto: 'Automática (detectada: {tier})', renderScale: 'Escala de renderização',
+  quality: 'Qualidade', level: 'Nível {n}', auto: 'Automática (detectada: {tier})', renderScale: 'Escala de renderização',
   fromPreset: 'Do predefinido ({tier})', adaptive: 'Resolução adaptativa', showFps: 'Mostrar taxa de quadros',
   postFailed: 'O pós-processamento não está disponível neste dispositivo; a casa é desenhada sem ele.',
   unknownGpu: 'GPU desconhecida', effects: 'Efeitos',
@@ -97,7 +97,7 @@ const pt = {
 };
 
 const it = {
-  quality: 'Qualità', auto: 'Automatica (rilevata: {tier})', renderScale: 'Scala di rendering',
+  quality: 'Qualità', level: 'Livello {n}', auto: 'Automatica (rilevata: {tier})', renderScale: 'Scala di rendering',
   fromPreset: 'Dal preset ({tier})', adaptive: 'Risoluzione adattiva', showFps: 'Mostra frame rate',
   postFailed: 'La post-elaborazione non è disponibile su questo dispositivo; la casa viene disegnata senza.',
   unknownGpu: 'GPU sconosciuta', effects: 'Effetti',
