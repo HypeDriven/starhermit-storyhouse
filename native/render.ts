@@ -21,7 +21,7 @@
 // MSAA on the target) is the runtime's renderer.ao / bloom / grade /
 // antialias. The canvas filled the window behind the HUD, as the camera does.
 import {
-  ACESFilmicToneMapping, AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, CircleGeometry, Color, DirectionalLight, DoubleSide,
+  ACESFilmicToneMapping, AdditiveBlending, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CircleGeometry, Color, DirectionalLight, DoubleSide,
   DynamicDrawUsage, Fog, Group, HemisphereLight, InstancedMesh, MathUtils, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial,
   MeshStandardMaterial, OctahedronGeometry, PMREMGenerator, Points, PointsMaterial, Raycaster, RingGeometry, RoomEnvironment, Vector2,
   Vector3, pointerToNdc, renderer, scene, type Material, type Object3D, type Texture,
@@ -104,6 +104,8 @@ let moteCount = 0;
 interface PieceRec {
   key: string; group: Group; pos: Vector3; target: Vector3; vel: { x: { out: number }; y: { out: number }; z: { out: number } };
   lift: number; targetLift: number; liftVel: { out: number }; phase: number; spin: number;
+  /** Its size (for its named target on screen). */
+  h: number; r: number;
 }
 let world: Group | null = null;
 let house: House | null = null;
@@ -190,10 +192,13 @@ export function startSession(c: Content, th: Theme, state: State): void {
   av = new Rngs.RngStream(Rngs.deriveSeed("av", c.seed));
   for (const key of Object.keys(c.items)) {
     const group = makePiece(key);
+    const box = new Box3().setFromObject(group);
+    const size = box.getSize(new Vector3());
     world.add(group);
     const rec: PieceRec = {
       key, group, pos: new Vector3(0, -3, 0), target: new Vector3(0, -3, 0), vel: { x: { out: 0 }, y: { out: 0 }, z: { out: 0 } },
       lift: 0, targetLift: 0, liftVel: { out: 0 }, phase: av.next() * Math.PI * 2, spin: 0,
+      h: Math.max(0.15, size.y), r: Math.max(0.15, Math.min(0.45, Math.max(size.x, size.z) * 0.35)),
     };
     pieces.set(key, rec);
     group.position.copy(rec.pos);
@@ -477,7 +482,7 @@ export function slotRect(room: string, slot: number): Rect | null {
 /** A piece on screen (where it stands now). */
 export function pieceRect(key: string): Rect | null {
   const rec = pieces.get(key);
-  return rec ? screenBox(rec.group.position, 0.32, 0.8) : null;
+  return rec ? screenBox(rec.group.position, rec.r, rec.h) : null;
 }
 /** A world point on screen (window px). */
 export function project(p: Vector3): { x: number; y: number } | null { return toWindow(p); }

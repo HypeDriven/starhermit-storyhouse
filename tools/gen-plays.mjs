@@ -165,7 +165,7 @@ const LESSON_PLANS = {
   'learn-4': [{ type: 'place', item: 'luna', room: 'kitchen', slot: 0 }, { type: 'place', item: 'biscuit', room: 'kitchen', slot: 1 }, { type: 'interact', room: 'kitchen', a: 'luna', b: 'biscuit' }],
   'learn-5': [{ type: 'place', item: 'pip', room: 'library', slot: 0 }, { type: 'place', item: 'clock', room: 'library', slot: 1 }, { type: 'interact', room: 'library', a: 'pip', b: 'clock' }],
 };
-const planFor = (content) => {
+export const planFor = (content) => {
   if (LESSON_PLANS[content.contentId]) return LESSON_PLANS[content.contentId];
   return C.planContent(content).commands;
 };
