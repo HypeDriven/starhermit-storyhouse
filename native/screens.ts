@@ -163,6 +163,7 @@ function playHud(L: Layout): void {
   const trayH = tray(L);
   const railTop = top + 8;
   const railBottom = L.lh - L.sa.bottom - trayH - 16;
+  if (app.mirror) mirror(L, trayH, railTop + (L.wide ? 0 : 52));
   if (L.wide) {
     const rw = Math.max(240, Math.min(300, L.lw * 0.2));
     const leftX = L.sa.left + 10, rightX = L.lw - L.sa.right - 10 - rw;
@@ -188,7 +189,6 @@ function playHud(L: Layout): void {
       });
     }
   }
-  if (app.mirror) mirror(L, trayH);
   if (L.wide && !app.mirror) keyHints(L, trayH);
 }
 /** The top bar (#hud-top); returns its bottom edge. */
@@ -396,11 +396,11 @@ function keyHints(L: Layout, trayH: number): void {
   });
 }
 /** #a11y-mirror: the house as text, every slot and tray piece a button. */
-function mirror(L: Layout, trayH: number): void {
+function mirror(L: Layout, trayH: number, minTop: number): void {
   const st = app.session!.state;
   const w = Math.min(340, L.lw * 0.92);
-  const bottom = L.portrait ? trayH + 16 : 8;
-  const maxH = L.portrait ? Math.max(160, L.lh * 0.58 - 60 - trayH) : L.lh * 0.46;
+  const bottom = L.wide ? 8 : trayH + 16;
+  const maxH = L.portrait ? Math.max(160, L.lh * 0.58 - 60 - trayH) : L.land ? Math.max(100, L.lh - L.sa.bottom - bottom - minTop) : L.lh * 0.46;
   const prev = sizeOf("mirror-in");
   const contentH = prev ? prev.height / L.sc : maxH;
   const h = Math.min(maxH, contentH + 22);
@@ -452,6 +452,18 @@ function hudTargets(L: Layout): void {
 }
 
 // ------------------------------------------------------------------ toasts, captions, countdown
+/** A toast or caption box that never takes the pointer (#toast-region was pointer-events: none). */
+function passBox(id: string, text: string, maxW: number, cls: string, size: number, align: "center" | "start"): void {
+  const sc = ui.preferences().scale * ui.preferences().textScale;
+  const m = draw.measureText(text, { size: size * sc, maxWidth: maxW * sc, font: "sans-serif" });
+  const padX = cls === "captions" ? 12 : 18, padY = cls === "captions" ? 4 : 8;
+  const w = Math.min(maxW, m.width / sc) + 2 * padX + 2, h = m.height / sc + 2 * padY + 2;
+  ui.style(cls).widget("", {
+    role: "none", size: { width: w, height: h },
+    draw: (r) => draw.text(text, align === "center" ? r.x + r.width / 2 : r.x + padX * (r.width / w), r.y + padY * (r.height / h), { size: size * sc, color: token("ink"), align, maxWidth: maxW * sc, font: "sans-serif" }),
+  });
+  void id;
+}
 function toasts(L: Layout, hud: boolean): void {
   if (!app.toasts.length) return;
   const w = Math.min(L.lw * 0.9, 520);
@@ -459,8 +471,7 @@ function toasts(L: Layout, hud: boolean): void {
   const y = Math.max(86, trayH + 22) + L.sa.bottom;
   ui.place("toast-region", { anchor: "bottom", y }, () => {
     ui.column("toast-col", () => {
-      app.toasts.forEach((t, i) => ui.column(`toast-${i}`, () => para(t.text, w - 38, "toast-text", `toast-${i}-text`),
-        { style: t.kind === "bad" ? "toast-bad" : t.kind === "good" ? "toast-good" : "toast", align: "center" }));
+      app.toasts.forEach((t, i) => passBox(`toast-${i}`, t.text, w - 38, t.kind === "bad" ? "toast-bad" : t.kind === "good" ? "toast-good" : "toast", 16, "center"));
     }, { spacing: 6, align: "center" });
   });
 }
@@ -468,7 +479,7 @@ function captions(L: Layout): void {
   if (!app.caption) return;
   const w = Math.min(L.lw * 0.6, 420);
   ui.place("captions", { anchor: "bottom-start", x: 8 + L.sa.left, y: 8 + L.sa.bottom }, () => {
-    ui.column("captions-box", () => para(app.caption!.text, w, "caption-text", "captions-text"), { style: "captions" });
+    passBox("captions-box", app.caption!.text, w, "captions", 13.6, "start");
   });
 }
 function countdown(L: Layout): void {

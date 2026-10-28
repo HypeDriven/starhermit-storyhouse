@@ -28,10 +28,19 @@ import {
 } from "starhermit:platform";
 import { saves, settings as store, storage } from "starhermit:storage";
 import { Persist, type Progress, type Scene } from "./game.ts";
+import * as SaveDocs from "../src/savedoc.js";
 
 // --- the save ---------------------------------------------------------------------------------
 export interface SaveDoc { v: 2; progress: Progress; scenes: Scene[] }
-const SCENE_CAP = 30;
+interface DocApi {
+  readDoc(raw: unknown): SaveDoc | null; mergeDocs(a: SaveDoc | null, b: SaveDoc | null): SaveDoc; canonical(v: unknown): string;
+  cleanScene(s: Scene): Scene; SCENE_CAP: number;
+  DEFAULT_OPTIONS: Options; pickOption(key: string, v: unknown): Options[keyof Options] | undefined;
+  LEGACY_KEYS: string[]; legacyOptions(kv: Record<string, unknown>): Partial<Options>;
+}
+const Doc = SaveDocs as unknown as DocApi;
+export const { readDoc, mergeDocs, canonical } = Doc;
+const cleanScene = Doc.cleanScene, SCENE_CAP = Doc.SCENE_CAP;
 let progressDoc: Progress = Persist.sealProgress(Persist.defaultProgress());
 let sceneList: Scene[] = [];
 let lastSavedAt = 0;
@@ -39,43 +48,6 @@ const mergedListeners = new Set<() => void>();
 /** fn() after progress from the account (another device, the browser build) was merged in. */
 export function onProgressMerged(fn: () => void): void { mergedListeners.add(fn); }
 function merged(): void { for (const fn of mergedListeners) fn(); }
-
-/** A stored scene with a picture only when it is a small PNG data URL (what render.js and render.ts make). */
-function cleanScene(s: Scene): Scene {
-  if (!s || typeof s !== "object") return s;
-  const t = s.thumbnail;
-  if (t == null || (typeof t === "string" && t.startsWith("data:image/png;base64,") && t.length < 400_000)) return s;
-  const { thumbnail: _t, ...rest } = s;
-  void _t;
-  return rest as Scene;
-}
-/** Any document the game ever saved ({v:2, progress, scenes}, or a bare v1 progress doc) → a clean SaveDoc, or null. */
-export function readDoc(raw: unknown): SaveDoc | null {
-  if (!raw || typeof raw !== "object") return null;
-  const d = raw as { v?: number; progress?: unknown; scenes?: unknown };
-  let progress: Progress | null = null, scenes: Scene[] = [];
-  if (d.v === 2) {
-    progress = Persist.verifyProgress(d.progress) ? d.progress as Progress : (d.progress ? Persist.migrateProgress(d.progress) : null);
-    scenes = Array.isArray(d.scenes) ? (d.scenes as Scene[]).filter((s) => s && typeof s === "object" && s.id).map(cleanScene) : [];
-  } else if (Persist.verifyProgress(raw)) progress = raw as Progress;
-  else return null;
-  return { v: 2, progress: progress ?? Persist.sealProgress(Persist.defaultProgress()), scenes: Persist.mergeScenes(scenes, [], SCENE_CAP) };
-}
-/** Two documents merged (neither side's progress or scenes dropped). */
-export function mergeDocs(a: SaveDoc | null, b: SaveDoc | null): SaveDoc {
-  return {
-    v: 2,
-    progress: Persist.sealProgress(Persist.mergeProgress(a?.progress ?? null, b?.progress ?? null)),
-    scenes: Persist.mergeScenes(a?.scenes ?? [], b?.scenes ?? [], SCENE_CAP),
-  };
-}
-/** A document's content as canonical JSON (key order and timestamps of the save do not matter). */
-export function canonical(v: unknown): string {
-  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
-  if (Array.isArray(v)) return "[" + v.map(canonical).join(",") + "]";
-  const o = v as Record<string, unknown>;
-  return "{" + Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => JSON.stringify(k) + ":" + canonical(o[k])).join(",") + "}";
-}
 const current = (): SaveDoc => ({ v: 2, progress: progressDoc, scenes: sceneList });
 function write(opts: { replaceForeign?: boolean } = {}): void {
   try {
@@ -204,18 +176,9 @@ export interface Options {
   captions: boolean; palette: Palette; lefty: boolean; dragMode: DragMode; timingAssist: boolean;
   hapticsOff: boolean; mute: boolean; telemetry: boolean;
 }
-export const DEFAULT_OPTIONS: Options = {
-  captions: false, palette: "default", lefty: false, dragMode: "both", timingAssist: false, hapticsOff: false, mute: false, telemetry: false,
-};
+export const DEFAULT_OPTIONS: Options = Doc.DEFAULT_OPTIONS;
 const OPTION_KEYS = Object.keys(DEFAULT_OPTIONS) as (keyof Options)[];
-const PALETTES: Palette[] = ["default", "protan", "deutan", "tritan"];
-const DRAG_MODES: DragMode[] = ["both", "tap", "drag"];
-/** A stored value for an option, or undefined when it is not one. */
-export function pickOption(key: keyof Options, v: unknown): Options[keyof Options] | undefined {
-  if (key === "palette") return PALETTES.includes(v as Palette) ? v as Palette : undefined;
-  if (key === "dragMode") return DRAG_MODES.includes(v as DragMode) ? v as DragMode : undefined;
-  return typeof v === "boolean" ? v : undefined;
-}
+export const pickOption = (key: keyof Options, v: unknown): Options[keyof Options] | undefined => Doc.pickOption(key, v);
 export const options: Options = { ...DEFAULT_OPTIONS };
 const optionListeners = new Set<() => void>();
 export function onOptionsChange(fn: () => void): void { optionListeners.add(fn); }
@@ -234,19 +197,7 @@ export function setOption<K extends keyof Options>(key: K, value: Options[K]): v
   optionsChanged();
   telemetry("settings-change");
 }
-/** The browser build's settings KV keys (platform.js PREF_KEYS). */
-export const LEGACY_KEYS = ["music", "effects", "ambience", "voice", "mute", "captions", "gfx", "reducedMotion", "highContrast", "largeText",
-  "palette", "lefty", "dragMode", "timingAssist", "hapticsOff", "tutorialsDone", "gamepad"];
-/** The old KV's values this game keeps as options. */
-export function legacyOptions(kv: Record<string, unknown>): Partial<Options> {
-  const out: Partial<Options> = {};
-  for (const k of OPTION_KEYS) {
-    if (!(k in kv)) continue;
-    const v = pickOption(k, kv[k]);
-    if (v !== undefined) (out as Record<string, unknown>)[k] = v;
-  }
-  return out;
-}
+const LEGACY_KEYS = Doc.LEGACY_KEYS, legacyOptions = Doc.legacyOptions;
 function importLegacy(): void {
   const keys = store.legacyKeys();
   if (!keys) return;

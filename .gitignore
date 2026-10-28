@@ -6,3 +6,4 @@ test-results/
 .tmp-build/
 data/
 .starhermit/
+tests/native/.daily.play
