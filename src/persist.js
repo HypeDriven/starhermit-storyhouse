@@ -3,7 +3,13 @@
 // Shared by the browser platform layer and by Node tests.
 import { hashValue } from './rng.js';
 import { hashState } from './rules.js';
-import { defaultGfx, PRESETS } from './gfx.js';
+
+// The browser build's graphics settings (gfx.js): read only to migrate old
+// settings documents; the runtime's Options own graphics now.
+const PRESETS = ['low', 'balanced', 'high', 'ultra'];
+function defaultGfx() {
+  return { preset: 'auto', render_scale: 1, adaptive: true, show_fps: false };
+}
 
 export const SETTINGS_VERSION = 1;
 export const PROGRESS_VERSION = 1;

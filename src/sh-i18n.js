@@ -1,7 +1,8 @@
 // sh-i18n.js — strings for the StarHermit platform controls (sign-in, invite)
 // in every supported locale; the game language comes from i18n.js.
-import { gfxLocale, fmt } from './gfx-i18n.js';
-import { currentLang } from './i18n.js';
+import { currentLang, pickLocale } from './i18n.js';
+
+const fmt = (s, vars) => String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
 
 const en = {
   signIn: 'Sign in with StarHermit', invite: 'Invite a friend',
@@ -51,5 +52,5 @@ export const SH_STRINGS = {
 };
 
 export function shText(key, vars = {}, tag = currentLang()) {
-  return fmt(SH_STRINGS[gfxLocale(tag)][key] ?? en[key], vars);
+  return fmt(SH_STRINGS[pickLocale(tag)][key] ?? en[key], vars);
 }

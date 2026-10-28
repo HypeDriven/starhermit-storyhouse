@@ -1,0 +1,1195 @@
+{
+  "styles": {
+    ".text": {
+      "text": {
+        "color": "$ink",
+        "size": 16
+      }
+    },
+    ".dim": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 16
+      }
+    },
+    ".small": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 13.6
+      }
+    },
+    ".fine": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 12.8
+      }
+    },
+    ".h1": {
+      "text": {
+        "color": "$ink",
+        "size": 30.4,
+        "weight": "700"
+      }
+    },
+    ".h2": {
+      "text": {
+        "color": "$ink",
+        "size": 20,
+        "weight": "700"
+      }
+    },
+    ".h3": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 12.5,
+        "weight": "700",
+        "letterSpacing": 1,
+        "transform": "uppercase"
+      }
+    },
+    ".title-h": {
+      "text": {
+        "color": "$ink",
+        "size": 70,
+        "weight": "700",
+        "letterSpacing": 1.4,
+        "align": "center"
+      }
+    },
+    ".tagline": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 16,
+        "align": "center"
+      }
+    },
+    ".stage-title": {
+      "text": {
+        "color": "$ink",
+        "size": 16.8,
+        "weight": "700"
+      }
+    },
+    ".objective": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 13.6
+      }
+    },
+    ".chip-text": {
+      "text": {
+        "color": "$ink",
+        "size": 16
+      }
+    },
+    ".chip-warn-text": {
+      "text": {
+        "color": "$bad",
+        "size": 16
+      }
+    },
+    ".card-title": {
+      "text": {
+        "color": "$ink",
+        "size": 14.7,
+        "weight": "600"
+      }
+    },
+    ".card-text": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 12.8
+      }
+    },
+    ".card-pts": {
+      "text": {
+        "color": "$brand",
+        "size": 12.5
+      }
+    },
+    ".card-mark": {
+      "text": {
+        "color": "$card",
+        "size": 14
+      }
+    },
+    ".card-mark-done": {
+      "text": {
+        "color": "$good",
+        "size": 14
+      }
+    },
+    ".beat": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 13.6
+      }
+    },
+    ".beat-strong": {
+      "text": {
+        "color": "$ink",
+        "size": 13.6,
+        "weight": "700"
+      }
+    },
+    ".beat-sig": {
+      "text": {
+        "color": "$brand",
+        "size": 13.6
+      }
+    },
+    ".beat-hab": {
+      "text": {
+        "color": "$good",
+        "size": 13.6
+      }
+    },
+    ".sel-desc": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 14.4
+      }
+    },
+    ".lesson-h": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 12.5,
+        "weight": "700",
+        "letterSpacing": 1,
+        "transform": "uppercase"
+      }
+    },
+    ".menu-name": {
+      "text": {
+        "color": "$ink",
+        "size": 16
+      }
+    },
+    ".menu-sub": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 12.5
+      }
+    },
+    ".ranked": {
+      "text": {
+        "color": "$brand",
+        "size": 16,
+        "weight": "700"
+      }
+    },
+    ".casual": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 16
+      }
+    },
+    ".fact-k": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 16
+      }
+    },
+    ".fact-v": {
+      "text": {
+        "color": "$ink",
+        "size": 16,
+        "weight": "600",
+        "align": "end"
+      }
+    },
+    ".star-on": {
+      "text": {
+        "color": "$brand",
+        "size": 35
+      }
+    },
+    ".star-off": {
+      "text": {
+        "color": "$line",
+        "size": 35
+      }
+    },
+    ".total-k": {
+      "text": {
+        "color": "$ink",
+        "size": 18.4,
+        "weight": "800"
+      }
+    },
+    ".total-v": {
+      "text": {
+        "color": "$ink",
+        "size": 18.4,
+        "weight": "800",
+        "align": "end"
+      }
+    },
+    ".ach-pop": {
+      "text": {
+        "color": "$brand",
+        "size": 16,
+        "weight": "600"
+      }
+    },
+    ".ach-name": {
+      "text": {
+        "color": "$ink",
+        "size": 16,
+        "weight": "700"
+      }
+    },
+    ".mini-text": {
+      "text": {
+        "color": "$ink",
+        "size": 13.6
+      }
+    },
+    ".stage-num": {
+      "text": {
+        "color": "$ink",
+        "size": 13.6,
+        "align": "center"
+      }
+    },
+    ".stage-stars": {
+      "text": {
+        "color": "$brand",
+        "size": 10.2,
+        "letterSpacing": 1,
+        "align": "center"
+      }
+    },
+    ".countdown": {
+      "text": {
+        "color": "$brand",
+        "size": 112,
+        "weight": "800",
+        "align": "center"
+      }
+    },
+    ".toast-text": {
+      "text": {
+        "color": "$ink",
+        "size": 16,
+        "align": "center"
+      }
+    },
+    ".caption-text": {
+      "text": {
+        "color": "$ink",
+        "size": 13.6
+      }
+    },
+    ".kbd-text": {
+      "text": {
+        "color": "$ink",
+        "size": 14
+      }
+    },
+    ".btn-label": {
+      "text": {
+        "color": "$ink",
+        "size": 16
+      }
+    },
+    ".btn-label-ink": {
+      "text": {
+        "color": "$brand-ink",
+        "size": 16,
+        "weight": "700"
+      }
+    },
+    ".wrap": {
+      "text": {
+        "color": "$ink",
+        "size": 16
+      }
+    },
+    ".wrap-ink": {
+      "text": {
+        "color": "$brand-ink",
+        "size": 16,
+        "weight": "700",
+        "align": "center"
+      }
+    },
+    ".tray-icon": {
+      "text": {
+        "color": "$ink",
+        "size": 21,
+        "align": "center"
+      }
+    },
+    ".tray-name": {
+      "text": {
+        "color": "$ink",
+        "size": 12.5,
+        "align": "center"
+      }
+    },
+    ".legend": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 16
+      }
+    },
+    ".page": {
+      "background": "$paper",
+      "radius": 0
+    },
+    ".screen": {
+      "background": "$screen-bg",
+      "radius": 0
+    },
+    ".topbar": {
+      "background": "$bar",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 14,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 6,
+        "end": 12,
+        "bottom": 6,
+        "start": 12
+      }
+    },
+    ".rail": {
+      "background": "$rail-bg",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 14,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 10,
+        "end": 14,
+        "bottom": 10,
+        "start": 14
+      }
+    },
+    ".tray": {
+      "background": "$bar",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 999,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 6,
+        "end": 14,
+        "bottom": 6,
+        "start": 14
+      }
+    },
+    ".tray-tall": {
+      "background": "$bar",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 18,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 6,
+        "end": 8,
+        "bottom": 6,
+        "start": 8
+      }
+    },
+    ".chip": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 999,
+      "padding": {
+        "top": 3,
+        "end": 12,
+        "bottom": 3,
+        "start": 12
+      }
+    },
+    ".chip-warn": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$bad",
+        "style": "solid"
+      },
+      "radius": 999,
+      "padding": {
+        "top": 3,
+        "end": 12,
+        "bottom": 3,
+        "start": 12
+      }
+    },
+    ".card-item": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 10,
+      "padding": {
+        "top": 6,
+        "end": 10,
+        "bottom": 6,
+        "start": 10
+      }
+    },
+    ".card-done": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$good",
+        "style": "solid"
+      },
+      "radius": 10,
+      "padding": {
+        "top": 6,
+        "end": 10,
+        "bottom": 6,
+        "start": 10
+      },
+      "opacity": 0.75
+    },
+    ".lesson": {
+      "background": "$lesson-bg",
+      "border": {
+        "width": 1,
+        "color": "$brand",
+        "style": "solid"
+      },
+      "radius": 10,
+      "padding": {
+        "top": 8,
+        "end": 12,
+        "bottom": 8,
+        "start": 12
+      }
+    },
+    ".fact": {
+      "border": {
+        "width": {
+          "bottom": 1
+        },
+        "color": {
+          "bottom": "$line"
+        },
+        "style": "solid"
+      },
+      "radius": 0,
+      "padding": {
+        "top": 4,
+        "end": 0,
+        "bottom": 4,
+        "start": 0
+      }
+    },
+    ".score-row": {
+      "border": {
+        "width": {
+          "bottom": 1
+        },
+        "color": {
+          "bottom": "$line"
+        },
+        "style": "solid"
+      },
+      "radius": 0,
+      "padding": {
+        "top": 5,
+        "end": 14,
+        "bottom": 5,
+        "start": 14
+      }
+    },
+    ".score-total": {
+      "radius": 0,
+      "padding": {
+        "top": 5,
+        "end": 14,
+        "bottom": 5,
+        "start": 14
+      }
+    },
+    ".mini-card": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$card",
+        "style": "solid"
+      },
+      "radius": 8,
+      "padding": {
+        "top": 4,
+        "end": 10,
+        "bottom": 4,
+        "start": 10
+      }
+    },
+    ".mini-done": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$good",
+        "style": "solid"
+      },
+      "radius": 8,
+      "padding": {
+        "top": 4,
+        "end": 10,
+        "bottom": 4,
+        "start": 10
+      }
+    },
+    ".scene-card": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 8,
+        "end": 12,
+        "bottom": 8,
+        "start": 12
+      }
+    },
+    ".thumb": {
+      "background": "$paper-2",
+      "radius": 8
+    },
+    ".ach": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 10,
+      "padding": {
+        "top": 8,
+        "end": 12,
+        "bottom": 8,
+        "start": 12
+      }
+    },
+    ".ach-locked": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 10,
+      "padding": {
+        "top": 8,
+        "end": 12,
+        "bottom": 8,
+        "start": 12
+      },
+      "opacity": 0.5
+    },
+    ".rule-card": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 10,
+        "end": 14,
+        "bottom": 10,
+        "start": 14
+      }
+    },
+    ".binding-row": {
+      "border": {
+        "width": {
+          "bottom": 1
+        },
+        "color": {
+          "bottom": "$line"
+        },
+        "style": "solid"
+      },
+      "radius": 0,
+      "padding": {
+        "top": 3,
+        "end": 0,
+        "bottom": 3,
+        "start": 0
+      }
+    },
+    ".kbd": {
+      "background": "$paper-2",
+      "border": {
+        "width": {
+          "top": 1,
+          "end": 1,
+          "bottom": 3,
+          "start": 1
+        },
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 6,
+      "padding": {
+        "top": 1,
+        "end": 8,
+        "bottom": 1,
+        "start": 8
+      }
+    },
+    ".fieldset": {
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 12,
+        "end": 16,
+        "bottom": 12,
+        "start": 16
+      }
+    },
+    ".overlay-card": {
+      "background": "$paper-2",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 18,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 22,
+        "end": 26,
+        "bottom": 22,
+        "start": 26
+      }
+    },
+    ".toast": {
+      "background": "$paper-2",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 19,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 8,
+        "end": 18,
+        "bottom": 8,
+        "start": 18
+      }
+    },
+    ".toast-bad": {
+      "background": "$paper-2",
+      "border": {
+        "width": 1,
+        "color": "$bad",
+        "style": "solid"
+      },
+      "radius": 19,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 8,
+        "end": 18,
+        "bottom": 8,
+        "start": 18
+      }
+    },
+    ".toast-good": {
+      "background": "$paper-2",
+      "border": {
+        "width": 1,
+        "color": "$good",
+        "style": "solid"
+      },
+      "radius": 19,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 8,
+        "end": 18,
+        "bottom": 8,
+        "start": 18
+      }
+    },
+    ".captions": {
+      "background": "#0a0610bf",
+      "radius": 8,
+      "padding": {
+        "top": 4,
+        "end": 12,
+        "bottom": 4,
+        "start": 12
+      }
+    },
+    ".mirror": {
+      "background": "$paper-2",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 10,
+        "end": 14,
+        "bottom": 10,
+        "start": 14
+      }
+    },
+    ".field": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 8,
+      "padding": {
+        "top": 8,
+        "end": 10,
+        "bottom": 8,
+        "start": 10
+      },
+      "minHeight": 40,
+      "text": {
+        "color": "$ink",
+        "size": 16
+      }
+    },
+    ".btn-primary": {
+      "background": "$brand",
+      "border": {
+        "width": 0
+      },
+      "radius": 12,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 10,
+        "end": 22,
+        "bottom": 10,
+        "start": 22
+      },
+      "minHeight": 44,
+      "text": {
+        "color": "$brand-ink",
+        "size": 16,
+        "weight": "700",
+        "align": "center"
+      },
+      "hovered": {
+        "background": "#f5c060"
+      },
+      "disabled": {
+        "opacity": 0.45
+      }
+    },
+    ".btn-big": {
+      "background": "$brand",
+      "border": {
+        "width": 0
+      },
+      "radius": 12,
+      "shadow": {
+        "y": 8,
+        "blur": 30,
+        "color": "#0a061073"
+      },
+      "padding": {
+        "top": 14,
+        "end": 40,
+        "bottom": 14,
+        "start": 40
+      },
+      "minHeight": 44,
+      "text": {
+        "color": "$brand-ink",
+        "size": 20,
+        "weight": "700",
+        "align": "center"
+      },
+      "hovered": {
+        "background": "#f5c060"
+      }
+    },
+    ".btn-menu": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 10,
+        "end": 16,
+        "bottom": 10,
+        "start": 16
+      },
+      "minHeight": 44,
+      "text": {
+        "color": "$ink",
+        "size": 16,
+        "align": "start"
+      },
+      "hovered": {
+        "background": "$line"
+      },
+      "disabled": {
+        "opacity": 0.45
+      }
+    },
+    ".btn-small": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 6,
+        "end": 12,
+        "bottom": 6,
+        "start": 12
+      },
+      "minHeight": 36,
+      "text": {
+        "color": "$ink",
+        "size": 16,
+        "align": "start"
+      },
+      "hovered": {
+        "background": "$line"
+      }
+    },
+    ".btn-danger": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$bad",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 6,
+        "end": 12,
+        "bottom": 6,
+        "start": 12
+      },
+      "minHeight": 36,
+      "text": {
+        "color": "$bad",
+        "size": 16,
+        "align": "center"
+      },
+      "hovered": {
+        "background": "$line"
+      }
+    },
+    ".btn-text": {
+      "background": "#00000000",
+      "border": {
+        "width": 0
+      },
+      "radius": 6,
+      "padding": 8,
+      "minHeight": 40,
+      "text": {
+        "color": "$ink-dim",
+        "size": 16,
+        "align": "center"
+      },
+      "hovered": {
+        "text": {
+          "color": "$ink"
+        }
+      }
+    },
+    ".btn-chip": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 999,
+      "padding": {
+        "top": 4,
+        "end": 12,
+        "bottom": 4,
+        "start": 12
+      },
+      "minHeight": 36,
+      "text": {
+        "color": "$ink",
+        "size": 16,
+        "align": "center"
+      },
+      "hovered": {
+        "background": "$line"
+      },
+      "disabled": {
+        "opacity": 0.4
+      }
+    },
+    ".btn-drawer": {
+      "background": "$paper-2",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 999,
+      "padding": {
+        "top": 6,
+        "end": 14,
+        "bottom": 6,
+        "start": 14
+      },
+      "minHeight": 44,
+      "text": {
+        "color": "$ink",
+        "size": 16,
+        "align": "center"
+      },
+      "hovered": {
+        "background": "$paper-3"
+      },
+      "selected": {
+        "background": "$paper-3",
+        "border": {
+          "color": "$brand"
+        }
+      }
+    },
+    ".btn-tray": {
+      "background": "$paper-3",
+      "border": {
+        "width": 2,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 4,
+        "end": 8,
+        "bottom": 4,
+        "start": 8
+      },
+      "minWidth": 52,
+      "minHeight": 52,
+      "text": {
+        "color": "$ink",
+        "size": 12.5,
+        "align": "center"
+      },
+      "hovered": {
+        "border": {
+          "color": "$ink-dim"
+        }
+      },
+      "selected": {
+        "background": "$tray-on",
+        "border": {
+          "color": "$brand"
+        }
+      }
+    },
+    ".btn-stage": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": 4,
+      "text": {
+        "color": "$ink",
+        "size": 13.6,
+        "align": "center"
+      },
+      "hovered": {
+        "background": "$line"
+      },
+      "disabled": {
+        "opacity": 0.35
+      }
+    },
+    ".btn-stage-m": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$brand",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": 4,
+      "text": {
+        "color": "$ink",
+        "size": 13.6,
+        "align": "center"
+      },
+      "hovered": {
+        "background": "$line"
+      },
+      "disabled": {
+        "opacity": 0.35
+      }
+    },
+    ".btn-stage-cur": {
+      "background": "$paper-3",
+      "border": {
+        "width": 2,
+        "color": "$focus",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": 4,
+      "text": {
+        "color": "$ink",
+        "size": 13.6,
+        "align": "center"
+      },
+      "hovered": {
+        "background": "$line"
+      }
+    },
+    ".btn-mirror": {
+      "background": "$paper-3",
+      "border": {
+        "width": 1,
+        "color": "$line",
+        "style": "solid"
+      },
+      "radius": 8,
+      "padding": {
+        "top": 6,
+        "end": 10,
+        "bottom": 6,
+        "start": 10
+      },
+      "minHeight": 40,
+      "text": {
+        "color": "$ink",
+        "size": 14.4,
+        "align": "start"
+      },
+      "hovered": {
+        "background": "$line"
+      },
+      "selected": {
+        "border": {
+          "color": "$brand"
+        }
+      }
+    },
+    ".btn-tray-on": {
+      "background": "$tray-on",
+      "border": {
+        "width": 2,
+        "color": "$brand",
+        "style": "solid"
+      },
+      "radius": 12,
+      "padding": {
+        "top": 4,
+        "end": 8,
+        "bottom": 4,
+        "start": 8
+      },
+      "minWidth": 52,
+      "minHeight": 52,
+      "text": {
+        "color": "$ink",
+        "size": 12.5,
+        "align": "center"
+      }
+    }
+  },
+  "animations": {},
+  "tokens": {
+    "bad": "#d95d4e",
+    "bar": "#2f2637e0",
+    "brand": "#e8b04a",
+    "brand-ink": "#2a1f10",
+    "card": "#9a7fc9",
+    "focus": "#ffd166",
+    "good": "#7fb069",
+    "ink": "#f4eef2",
+    "ink-dim": "#c9bcc6",
+    "lesson-bg": "#503e46",
+    "line": "#4a3c56",
+    "paper": "#241d2b",
+    "paper-2": "#2f2637",
+    "paper-3": "#3b2f45",
+    "rail-bg": "#2f2637e6",
+    "screen-bg": "#241d2bd1",
+    "tray-on": "#5e4946"
+  },
+  "layouts": {},
+  "dropped": []
+}

@@ -5,6 +5,12 @@ import { createGame, applyCommand, validateCommand, hashState, serializeState, d
 import { makeReplayEnvelope } from './persist.js';
 
 let SESSION_COUNTER = 0;
+// The session clock's time source (ms). The engine client drives it from the
+// runtime's fixed steps (setClock) so play scripts replay exactly; node tests
+// and the server keep performance.now.
+let clock = () => performance.now();
+/** Replaces the clock every session reads (a function returning ms). */
+export function setClock(fn) { clock = fn; }
 
 export class GameSession {
   constructor(content, opts = {}) {
@@ -27,15 +33,15 @@ export class GameSession {
   }
 
   // ------------------------------------------------------------ clock
-  resumeClock() { if (this._clockSince === null) this._clockSince = performance.now(); }
+  resumeClock() { if (this._clockSince === null) this._clockSince = clock(); }
   pauseClock() {
     if (this._clockSince !== null) {
-      this._clockAcc += performance.now() - this._clockSince;
+      this._clockAcc += clock() - this._clockSince;
       this._clockSince = null;
     }
   }
   elapsedMs() {
-    const running = this._clockSince !== null ? performance.now() - this._clockSince : 0;
+    const running = this._clockSince !== null ? clock() - this._clockSince : 0;
     return Math.floor(this._clockAcc + running); // integer simulation units
   }
 

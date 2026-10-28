@@ -1,17 +1,57 @@
 name=Storyhouse
 description=Arrange characters and props across dollhouse rooms to create and save your own open-ended stories.
-launch=index.html
 owner=2712e04e-461b-4d23-81ae-e40b429128a8
 server=score-script.js
 cover=cover.jpg
-control.confirm=Enter+Space | Confirm / place
+
+# StarHermit engine script game: one package, played natively by the
+# StarHermit client and in browsers by the engine's web runtime. Browsers open
+# launch=index.html, the loader `npm run package` writes (it pins the engine
+# on wiki.starhermit.com by hash; never edit it). Re-run `npm run package`
+# after every change and commit index.html + starhermit-files.json.
+launch=index.html
+engine.api=1
+engine.entry=native/main.ts
+engine.version=1.20.2
+engine.minor=20
+engine.capabilities=platform,storage,clipboard
+
+# Keyboard actions (players rebind keys and pads in the runtime's Options).
+# The house is also played with the pointer or a finger: tap a tray piece
+# (or a piece in the house) to pick it up, then a glowing spot to place or
+# move it; drag a piece onto a spot; tap two pieces in one room for a story
+# moment; drag empty space to look around, pinch or the wheel to zoom.
+engine.group.confirm=Story
+control.confirm=Enter+Space+NumpadEnter | Confirm / place
 control.cancel=Escape | Cancel / pause
 control.pause=KeyP | Pause
 control.undo=KeyU | Undo
 control.hint=KeyH | Hint
 control.camera=KeyC | Camera reset
 control.mute=KeyM | Mute
+control.interact=KeyI | Interact with the selected piece
+engine.group.left=Cursor
 control.left=ArrowLeft | Cursor left
 control.right=ArrowRight | Cursor right
 control.up=ArrowUp | Cursor up
 control.down=ArrowDown | Cursor down
+control.roomprev=BracketLeft | Previous room
+control.roomnext=BracketRight | Next room
+
+# Gamepad defaults (the browser build's: South confirms, East cancels, West
+# interacts, North hints, the left shoulder undoes, Start pauses, the
+# triggers cycle rooms; the D-pad or left stick moves the cursor and the
+# right stick looks around).
+engine.gamepad.confirm=South
+engine.gamepad.cancel=East
+engine.gamepad.interact=West
+engine.gamepad.hint=North
+engine.gamepad.undo=LeftShoulder
+engine.gamepad.pause=Start
+engine.gamepad.camera=RightStickPress
+engine.gamepad.left=DpadLeft+LeftStickLeft
+engine.gamepad.right=DpadRight+LeftStickRight
+engine.gamepad.up=DpadUp+LeftStickUp
+engine.gamepad.down=DpadDown+LeftStickDown
+engine.gamepad.roomprev=LeftTrigger
+engine.gamepad.roomnext=RightTrigger
