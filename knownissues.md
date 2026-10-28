@@ -231,7 +231,7 @@ layout, which also bidi-reorders leading symbols in HUD chips ("★ 12" reads
 "12 ★"). That is the existing mirroring design, not a regression, and undoing it
 needs a CSS rework rather than a review-pass edit.
 
-## Engine port 2026-10-28 (StarHermit engine 1.20.2, minor 20)
+## Engine port 2026-10-28 (StarHermit engine 1.22.0, minor 20)
 
 The browser client (index.html, src/main.js, ui.js, render.js, …) is replaced by native/*.ts on the
 engine; the rules, content, session and persistence modules are unchanged apart from a DOM-free
