@@ -6,10 +6,8 @@
 //   (src/persist.js) and the scrapbook of saved scenes. Two devices' saves
 //   merge on a conflict (mergeProgress / mergeScenes, as the browser build did
 //   on its saveconflict); the slot the browser build wrote through the JS SDK
-//   (game:<slug>) shows as foreign: it is merged in and replaced once. Old
-//   scenes' picture thumbnails (PNG data URLs read back from the WebGL canvas)
-//   are dropped there: the runtime cannot read a frame back, and the
-//   scrapbook draws each scene's plan from its replay instead;
+//   (game:<slug>) shows as foreign: it is merged in and replaced once. Scene
+//   thumbnails stay 168×112 PNG data URLs (the old ones show as they were);
 // - the paused story "Continue" resumes, the casual local leaderboard and the
 //   consent-gated usage counts stay in the device's key/value storage, as
 //   localStorage kept them before (only on this device);
@@ -42,9 +40,11 @@ const mergedListeners = new Set<() => void>();
 export function onProgressMerged(fn: () => void): void { mergedListeners.add(fn); }
 function merged(): void { for (const fn of mergedListeners) fn(); }
 
-/** A stored scene without its old picture (see above). */
+/** A stored scene with a picture only when it is a small PNG data URL (what render.js and render.ts make). */
 function cleanScene(s: Scene): Scene {
   if (!s || typeof s !== "object") return s;
+  const t = s.thumbnail;
+  if (t == null || (typeof t === "string" && t.startsWith("data:image/png;base64,") && t.length < 400_000)) return s;
   const { thumbnail: _t, ...rest } = s;
   void _t;
   return rest as Scene;

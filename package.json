@@ -1,12 +1,17 @@
 {
   "name": "storyhouse",
   "version": "1.0.0",
-  "description": "Storyhouse — a cutaway dollhouse storytelling sandbox.",
+  "description": "Storyhouse — a cutaway dollhouse storytelling sandbox on the StarHermit engine.",
   "type": "module",
   "scripts": {
+    "test": "npm run test:unit && npm run test:native",
+    "test:unit": "node --test tests/*.test.js tests/*.test.mjs",
+    "test:native": "node tests/native.mjs",
+    "test:browser": "node tools/browser-play.mjs .",
     "start": "node server.js",
-    "test": "node --test tests/*.test.js",
-    "test:e2e": "node tests/e2e.mjs"
+    "package": "node tools/package-web.mjs",
+    "css": "node tools/css.mjs",
+    "plays": "node tools/gen-plays.mjs"
   },
   "license": "PolyForm-Noncommercial-1.0.0",
   "private": true,
