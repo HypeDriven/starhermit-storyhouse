@@ -3,7 +3,7 @@
 Storyhouse is a single-player storytelling sandbox: the player arranges characters and props across
 the rooms of a cutaway dollhouse, sets off story moments between them, completes optional discovery
 cards and saves each finished scene to a scrapbook. It is a StarHermit engine **script game**
-(TypeScript on the host API, `engine.version=1.24.0`, `engine.minor=20`), played natively by the
+(TypeScript on the host API, `engine.version=1.27.0`, `engine.minor=29`), played natively by the
 StarHermit client and in browsers by the engine's web runtime from the same package.
 
 ## Rules (src/rules.js, unchanged)
@@ -94,14 +94,15 @@ haptics off, anonymous usage counts (kept on this device), Replay tutorials, Era
 ## Graphics (native/render.ts, house.ts, pieces.ts, vfx.ts, camera.ts, quality.ts)
 
 The browser build's three.js r160 scene on `starhermit:scene`: theme sky and fog, hemisphere / key /
-fill lights (÷ π), the procedural house (merged vertex-coloured rooms, per-room dressing, the
+fill lights at the page's intensities with its fitted shadow box (normalBias 0.025, radius 3; the
+ground takes shadows), the procedural house (merged vertex-coloured rooms, per-room dressing, the
 floorboard / wallpaper / grain / pane-glow surface detail as a WGSL surface hook), the procedural
 pieces (Lambert / Standard / clear-coated Physical by tier), RoomEnvironment(renderer) reflections on
 the pieces at their old intensities, the selection (lift, outline hull, pulsing ring, legal rings),
 ghost and invalid rings, cursor diamond, sparks, impact rings and dust motes, spring-animated pieces,
 the authored spring camera and the title backdrop (still on Balanced, swaying on High / Ultra).
 Per tier (gfx.js presets): Low — no shadows, no post, plain detail, MSAA; Balanced — 1024 shadows,
-bloom, display-space grade + vignette, FXAA; High — 2048, GTAO, SMAA; Ultra — 4096, high GTAO,
+bloom (the r160 0.5 strength squared for r185's bloom), display-space grade + vignette, FXAA; High — 2048, GTAO, SMAA; Ultra — 4096, high GTAO,
 MSAA, ×1.5 curve segments. Spark and mote counts scale with the level within the tier.
 
 ## Sound (native/audio.ts)
@@ -142,7 +143,6 @@ phone and landscape. `npm run package` rewrites the loader and the web index aft
 ## Known limitations
 
 - Text-style buttons are not underlined (the engine UI has no text decoration).
-- Shadows follow the view (the engine fits them), so the open ground takes none.
 - The old four volume sliders map onto the runtime's buses; per-effect graphics overrides are gone.
 - Music loops are seeded per theme, not per story seed.
 - Guests' old browser localStorage progress cannot migrate; cloud saves do.

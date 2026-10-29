@@ -9,21 +9,21 @@
 // orbit camera (camera.ts) and the title backdrop (a furnished demo house,
 // still or with a slow sway). Rendering reads rules state and never writes it.
 //
-// From three.js r160 (physically based lights): colours as written, the
-// hemisphere, key and fill light intensities ÷ π (the engine takes three's
-// legacy units). render.js's `new RoomEnvironment(this.renderer)` (r160: the
+// From three.js r160 (physically based lights): colours, the hemisphere,
+// key and fill light intensities, the shadow's bias / normalBias / radius and
+// its fitted box as written (minor 29). render.js's `new RoomEnvironment(this.renderer)` (r160: the
 // bright room) is kept as written, through PMREMGenerator.fromScene at sigma
 // 0.04, and set as each piece material's own envMap at its old
 // envMapIntensity (the house keeps its hemisphere-lit palette), as render.js
 // did with Reflections on. The old composer (RenderPass in half floats →
-// GTAO → UnrealBloom 0.5 / 0.5 / 1.5 → OutputPass with ACES at the theme's
+// GTAO → UnrealBloom 0.5 / 0.5 / 1.5 (squared at minor 29: r185's bloom) → OutputPass with ACES at the theme's
 // exposure → the colour grade + vignette in display space → SMAA / FXAA, or
 // MSAA on the target) is the runtime's renderer.ao / bloom / grade /
 // antialias. The canvas filled the window behind the HUD, as the camera does.
 import {
   ACESFilmicToneMapping, AdditiveBlending, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CircleGeometry, Color, DirectionalLight, DoubleSide,
   DynamicDrawUsage, Fog, Group, HemisphereLight, InstancedMesh, MathUtils, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial,
-  MeshStandardMaterial, OctahedronGeometry, PMREMGenerator, Points, PointsMaterial, Raycaster, RingGeometry, RoomEnvironment, Vector2,
+  MeshStandardMaterial, OctahedronGeometry, OrthographicCamera, PMREMGenerator, Points, PointsMaterial, Raycaster, RingGeometry, RoomEnvironment, Vector2,
   Vector3, pointerToNdc, renderer, scene, type Material, type Object3D, type Texture,
 } from "starhermit:scene";
 import { OffscreenCanvas, createImageBitmap } from "starhermit:canvas";
@@ -43,11 +43,11 @@ const SELECT_COLOR = 0xffd166, LEGAL_COLOR = 0xf2e8d0, INVALID_COLOR = 0xd95d4e;
 const BLOOM = { strength: 0.5, radius: 0.5, threshold: 1.5 };
 
 const rig = new CameraRig();
-const hemi = new HemisphereLight(0xffffff, 0x888888, 1.35 / Math.PI);
-const keyLight = new DirectionalLight(0xffffff, 2.6 / Math.PI);
-const fill = new DirectionalLight(0xffffff, 0.35 / Math.PI);
+const hemi = new HemisphereLight(0xffffff, 0x888888, 1.35);
+const keyLight = new DirectionalLight(0xffffff, 2.6);
+const fill = new DirectionalLight(0xffffff, 0.35);
 keyLight.shadow.bias = -0.0006;
-keyLight.shadow.normalBias = 1.5;
+keyLight.shadow.normalBias = 0.025;
 keyLight.shadow.radius = 3;
 fill.position.set(-8, 6, -6);
 scene.add(hemi, keyLight, keyLight.target, fill);
@@ -160,7 +160,7 @@ export function startSession(c: Content, th: Theme, state: State): void {
   scene.fog = new Fog(th.fog, 30, 90);
   renderer.toneMappingExposure = th.exposure ?? 1;
   hemi.color.set(th.hemiSky); hemi.groundColor.set(th.hemiGround);
-  keyLight.color.set(th.key); keyLight.intensity = th.keyIntensity / Math.PI;
+  keyLight.color.set(th.key); keyLight.intensity = th.keyIntensity;
   fill.color.set(th.hemiSky);
   world = new Group();
   scene.add(world);
@@ -245,8 +245,29 @@ function applyShadows(): void {
   renderer.shadowMap.enabled = sm > 0;
   keyLight.castShadow = sm > 0;
   if (sm > 0) keyLight.shadow.mapSize = sm;
-  // render.js _fitShadow fitted the light's frustum around the house and tray; the engine fits it to the view.
-  if (house) keyLight.shadow.distance = rig.dist + house.houseExtent * 2 + 4;
+  if (house) fitShadow(house);
+}
+/** render.js _fitShadow: the key light's shadow box fitted tightly around the house and tray. */
+function fitShadow(h: House): void {
+  const sc = keyLight.shadow.camera as OrthographicCamera;
+  const hw = h.houseW / 2 + 0.7;
+  const zMin = -ROOM_D / 2 - 0.5, zMax = ROOM_D / 2 + 3.0;
+  const yMin = -0.3, yMax = h.houseH + 1.3;
+  const view = new OrthographicCamera();
+  view.position.copy(keyLight.position);
+  view.lookAt(keyLight.target.position);
+  view.updateMatrixWorld();
+  const inv = view.matrixWorldInverse;
+  const min = new Vector3(Infinity, Infinity, Infinity), max = min.clone().negate();
+  const v = new Vector3();
+  for (const x of [-hw, hw]) for (const y of [yMin, yMax]) for (const z of [zMin, zMax]) {
+    v.set(x, y, z).applyMatrix4(inv);
+    min.min(v); max.max(v);
+  }
+  const pad = 0.3;
+  sc.left = min.x - pad; sc.right = max.x + pad; sc.bottom = min.y - pad; sc.top = max.y + pad;
+  sc.near = Math.max(0.1, -max.z - 1); sc.far = -min.z + 1;
+  sc.updateProjectionMatrix();
 }
 function applyMotion(): void {
   motes.visible = look?.particles === "high" && !reducedMotion && !!house;
@@ -256,7 +277,7 @@ function applyMotion(): void {
 export function applyLook(next: Look): void {
   if (look && JSON.stringify(look) === JSON.stringify(next)) return;
   look = next;
-  renderer.bloom = next.bloom ? { strength: BLOOM.strength, radius: BLOOM.radius, threshold: BLOOM.threshold, resolution: next.budget.bloomRes } : null;
+  renderer.bloom = next.bloom ? { strength: BLOOM.strength * BLOOM.strength, radius: BLOOM.radius, threshold: BLOOM.threshold, resolution: next.budget.bloomRes } : null;
   // GTAOPass: radius 0.45, distance exponent 1.4, thickness 1, 16 / 8 samples, the denoise per tier, blend 0.75.
   renderer.ao = next.ao === "off" ? null : {
     blendIntensity: 0.75, radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1,

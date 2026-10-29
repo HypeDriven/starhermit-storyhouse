@@ -273,9 +273,7 @@ export function buildHouse(layout: Layout, theme: Theme, detail: number, budget:
   const ground = new Mesh(new CircleGeometry(extent * 1.6, sseg(40, 16)), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.22;
-  // render.js fitted the key light's shadow frustum to the house and tray, so the house never shadowed the
-  // open ground beyond them; the engine fits shadows to the view, so the ground takes none.
-  ground.receiveShadow = false;
+  ground.receiveShadow = true;
   group.add(ground);
 
   const houseCenter = new Vector3(0, houseH / 2 - 0.4, 0);
