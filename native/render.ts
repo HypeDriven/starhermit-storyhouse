@@ -16,7 +16,7 @@
 // 0.04, and set as each piece material's own envMap at its old
 // envMapIntensity (the house keeps its hemisphere-lit palette), as render.js
 // did with Reflections on. The old composer (RenderPass in half floats →
-// GTAO → UnrealBloom 0.5 / 0.5 / 1.5 (squared at minor 29: r185's bloom) → OutputPass with ACES at the theme's
+// GTAO → UnrealBloom 0.5 / 0.5 / 1.5 (bloom.model "r160", the page's strength) → OutputPass with ACES at the theme's
 // exposure → the colour grade + vignette in display space → SMAA / FXAA, or
 // MSAA on the target) is the runtime's renderer.ao / bloom / grade /
 // antialias. The canvas filled the window behind the HUD, as the camera does.
@@ -277,7 +277,7 @@ function applyMotion(): void {
 export function applyLook(next: Look): void {
   if (look && JSON.stringify(look) === JSON.stringify(next)) return;
   look = next;
-  renderer.bloom = next.bloom ? { strength: BLOOM.strength * BLOOM.strength, radius: BLOOM.radius, threshold: BLOOM.threshold, resolution: next.budget.bloomRes } : null;
+  renderer.bloom = next.bloom ? { model: "r160", strength: BLOOM.strength, radius: BLOOM.radius, threshold: BLOOM.threshold, resolution: next.budget.bloomRes } : null;
   // GTAOPass: radius 0.45, distance exponent 1.4, thickness 1, 16 / 8 samples, the denoise per tier, blend 0.75.
   renderer.ao = next.ao === "off" ? null : {
     blendIntensity: 0.75, radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1,
@@ -285,10 +285,10 @@ export function applyLook(next: Look): void {
     denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: next.ao === "high" ? 6 : 4, rings: 2, samples: next.ao === "high" ? 16 : 8, radiusExponent: 2 },
   };
   // GradeShader after OutputPass (display space): an 0.18-weight smoothstep S-curve, saturation 1.1, cool
-  // shadows / warm highlights split by a 0.2–0.8 smoothstep of luma, all × 0.95, the 0.2 vignette 0.4–0.9 (y × 0.85).
+  // shadows / warm highlights split by a 0.2–0.8 smoothstep of luma, clamp(s × 0.95) (levels), the 0.2 vignette 0.4–0.9 (y × 0.85).
   renderer.grade = next.grade ? {
-    space: "display", contrast: 0.09, saturation: 1.1, split: [0.2, 0.8],
-    shadows: [0.97 * 0.95, 0.98 * 0.95, 1.04 * 0.95], highlights: [1.035 * 0.95, 0.95, 0.965 * 0.95],
+    space: "display", contrastCurve: "s", contrast: 0.18, saturation: 1.1, split: [0.2, 0.8],
+    shadows: [0.97, 0.98, 1.04], highlights: [1.035, 1.0, 0.965], levels: [0.95, 0],
     vignette: { amount: 0.2, inner: 0.4, outer: 0.9, scale: [1, 0.85] },
   } : null;
   renderer.antialias = next.antialias;

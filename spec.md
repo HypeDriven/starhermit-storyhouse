@@ -3,7 +3,7 @@
 Storyhouse is a single-player storytelling sandbox: the player arranges characters and props across
 the rooms of a cutaway dollhouse, sets off story moments between them, completes optional discovery
 cards and saves each finished scene to a scrapbook. It is a StarHermit engine **script game**
-(TypeScript on the host API, `engine.version=1.27.0`, `engine.minor=29`), played natively by the
+(TypeScript on the host API, `engine.version=1.28.0`, `engine.minor=30`), played natively by the
 StarHermit client and in browsers by the engine's web runtime from the same package.
 
 ## Rules (src/rules.js, unchanged)
@@ -102,7 +102,7 @@ the pieces at their old intensities, the selection (lift, outline hull, pulsing 
 ghost and invalid rings, cursor diamond, sparks, impact rings and dust motes, spring-animated pieces,
 the authored spring camera and the title backdrop (still on Balanced, swaying on High / Ultra).
 Per tier (gfx.js presets): Low — no shadows, no post, plain detail, MSAA; Balanced — 1024 shadows,
-bloom (the r160 0.5 strength squared for r185's bloom), display-space grade + vignette, FXAA; High — 2048, GTAO, SMAA; Ultra — 4096, high GTAO,
+bloom (the r160 page's 0.5 strength, bloom.model "r160"), display-space grade + vignette, FXAA; High — 2048, GTAO, SMAA; Ultra — 4096, high GTAO,
 MSAA, ×1.5 curve segments. Spark and mote counts scale with the level within the tier.
 
 ## Sound (native/audio.ts)
