@@ -3,7 +3,7 @@
 Storyhouse is a single-player storytelling sandbox: the player arranges characters and props across
 the rooms of a cutaway dollhouse, sets off story moments between them, completes optional discovery
 cards and saves each finished scene to a scrapbook. It is a StarHermit engine **script game**
-(TypeScript on the host API, `engine.version=1.28.0`, `engine.minor=30`), played natively by the
+(TypeScript on the host API, `engine.version=1.29.0`, `engine.minor=31`), played natively by the
 StarHermit client and in browsers by the engine's web runtime from the same package.
 
 ## Rules (src/rules.js, unchanged)
