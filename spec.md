@@ -101,7 +101,7 @@ pieces (Lambert / Standard / clear-coated Physical by tier), RoomEnvironment(ren
 the pieces at their old intensities, the selection (lift, outline hull, pulsing ring, legal rings),
 ghost and invalid rings, cursor diamond, sparks, impact rings and dust motes, spring-animated pieces,
 the authored spring camera and the title backdrop (still on Balanced, swaying on High / Ultra).
-Per tier (gfx.js presets): Low — no shadows, no post, plain detail, MSAA; Balanced — 1024 shadows,
+Per tier (shadows, AO, bloom, grade and anti-aliasing are the level's own, `levelSettings()`): Low — no shadows, no post, plain detail, no anti-aliasing (Atomic adds FXAA and the grade); Balanced — 1024 shadows,
 bloom (the r160 page's 0.5 strength, bloom.model "r160"), display-space grade + vignette, FXAA; High — 2048, GTAO, SMAA; Ultra — 4096, high GTAO,
 MSAA, ×1.5 curve segments. Spark and mote counts scale with the level within the tier.
 
@@ -128,8 +128,8 @@ sounds when enabled.
 
 ## Localization
 
-All strings in en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR and it-IT (src/strings.js,
-src/strings-content.js, src/sh-i18n.js), following the runtime's interface language live.
+All strings in en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR and it-IT (assets/strings.json on the
+engine's strings; account lines are the engine's `starhermit.*`), following the runtime's interface language live.
 
 ## Checks
 

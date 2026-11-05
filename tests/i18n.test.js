@@ -2,13 +2,14 @@
 // native/*.ts, the rules and the content show to players exists in all nine
 // locales (en-GB → en-US, es-ES → es-419, fr-CA → fr-FR inherit),
 // placeholders survive translation, no table row is unused, and the locale
-// follows the runtime's language tag with the regional fallbacks.
+// reads the engine's strings (assets/strings.json).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { usedKeys } from './i18n-keys.js';
 
-const { TABLES, LOCALES, T, currentLang, setLang, pickLocale } = await import('../src/i18n.js');
-const { shText } = await import('../src/sh-i18n.js');
+const TABLES = JSON.parse(readFileSync(new URL('../assets/strings.json', import.meta.url), 'utf8'));
+const LOCALES = ['en-US', 'en-GB', 'es-419', 'es-ES', 'de-DE', 'fr-FR', 'fr-CA', 'pt-BR', 'it-IT'];
 const PARENT = { 'en-GB': 'en-US', 'es-ES': 'es-419', 'fr-CA': 'fr-FR' };
 const has = (l, k) => { for (let x = l; x; x = PARENT[x]) if (TABLES[x] && Object.hasOwn(TABLES[x], k)) return TABLES[x][k]; return undefined; };
 const holes = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
@@ -33,27 +34,10 @@ test('tables carry no unused rows (catches typos in keys)', async () => {
   for (const [l, t] of Object.entries(TABLES)) if (PARENT[l]) assert.deepEqual(Object.keys(t).filter((k) => !keys.has(k)), [], l);
 });
 
-test('the language follows the runtime tag with the regional fallbacks, and T fills placeholders', () => {
-  assert.equal(currentLang(), 'en-US');
-  assert.equal(T('Moves {n}', { n: 12 }), 'Moves 12');
-  assert.equal(T('No such key'), 'No such key');
-  assert.equal(pickLocale('de'), 'de-DE');
-  assert.equal(pickLocale('en-AU'), 'en-GB');
-  assert.equal(pickLocale('es-MX'), 'es-419');
-  assert.equal(pickLocale('fr-CA'), 'fr-CA');
-  assert.equal(pickLocale('ja-JP'), 'en-US');
-  for (const l of LOCALES) assert.equal(pickLocale(l), l);
-  let seen = null;
-  setLang('de-DE');
-  assert.equal(T('Open Options'), 'Optionen öffnen');
-  assert.equal(shText('signIn'), 'Mit StarHermit anmelden');
-  setLang('en-GB');
-  assert.equal(T('Color palette'), 'Colour palette');
-  setLang('fr-CA');
-  assert.equal(T('Open Options'), 'Ouvrir les options'); // inherited from fr-FR
-  setLang('it-IT');
-  assert.equal(T('Tray: {name}', { name: 'Pip' }), 'Vassoio: Pip');
-  void seen;
-  setLang('en-US');
-  assert.equal(shText('signIn'), 'Sign in with StarHermit');
+test('the regional tables inherit, and the tables carry the nine locales', () => {
+  for (const l of LOCALES) assert.ok(TABLES[l], l);
+  assert.equal(has('de-DE', 'Open Options'), 'Optionen öffnen');
+  assert.equal(has('en-GB', 'Color palette'), 'Colour palette');
+  assert.equal(has('fr-CA', 'Open Options'), 'Ouvrir les options'); // inherited from fr-FR
+  assert.equal(has('it-IT', 'Tray: {name}'), 'Vassoio: {name}');
 });

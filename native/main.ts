@@ -20,7 +20,7 @@
 // on a clock advanced 1/60 s per fixed step, so slow frames never change a
 // story and play scripts replay exactly.
 import {
-  clipboard, frame, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate,
+  afterRender, clipboard, createTimers, frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate,
 } from "starhermit:engine";
 import { gamepads, onAction, onPointerButton, onPointerMove, onTouch, onWheel, primaryPointer, vibrate } from "starhermit:input";
 import * as ui from "starhermit:ui";
@@ -81,15 +81,19 @@ export const app = {
   hoverInvalid: null as string | null,
   theme: C.THEMES.meadow! as Theme,
 };
-export let look: Look = lookFor("balanced", 2);
+export let look: Look = lookFor(levelSettings("molecular"));
 
 // ------------------------------------------------------------------ clock and timers
 let clockMs = 0;
 export const now = (): number => clockMs;
 Sessions.setClock(() => clockMs);
-const timers: { at: number; fn: () => void; tag: string }[] = [];
-function after(ms: number, fn: () => void, tag = ""): void { timers.push({ at: clockMs + ms, fn, tag }); }
-function cancel(tag: string): void { for (let i = timers.length - 1; i >= 0; i--) if (timers[i]!.tag === tag) timers.splice(i, 1); }
+const timers = createTimers();
+const timerTags = new Map<number, string>();
+function after(ms: number, fn: () => void, tag = ""): void {
+  const id = timers.after(ms / 1000, () => { timerTags.delete(id); fn(); });
+  timerTags.set(id, tag);
+}
+function cancel(tag: string): void { for (const [id, t] of timerTags) if (t === tag) { timers.cancel(id); timerTags.delete(id); } }
 export const fresh = (): boolean => frame().frame !== app.openedFrame;
 
 // ------------------------------------------------------------------ helpers
@@ -117,10 +121,9 @@ audio.onCaption((key) => {
   if (!platform.options.captions) return;
   app.caption = { text: `♪ ${T(key)}`, until: clockMs + 3200 };
 });
-const pending: (() => void)[] = [];
 let uiPressed = false;
-/** A widget's press, run once the frame's UI is built (state changes mid-build would break later widgets). */
-export function later(fn: () => void): void { pending.push(fn); uiPressed = true; }
+/** A widget's press, run once the frame's UI is built (state changes mid-build would break later widgets), before the scene is drawn. */
+export function later(fn: () => void): void { afterRender(fn); uiPressed = true; }
 function haptic(ms: number): void {
   if (platform.options.hapticsOff) return;
   try { vibrate(ms); } catch { /* none */ }
@@ -848,9 +851,9 @@ function showResults(): void {
   };
   if (ranked) {
     if (platform.signedIn()) {
-      compare = () => S("lbPosting");
+      compare = () => S("leaderboardPosting");
       void platform.postScore(score.total).then((r) => {
-        compare = () => (!r.posted ? S("lbNotPosted") : r.rank ? S("lbRank", { rank: r.rank }) : S("lbPosted"));
+        compare = () => (!r.posted ? S("leaderboardNotPosted") : r.rank ? S("leaderboardRank", { rank: r.rank }) : S("leaderboardPosted"));
         if (app.results === view) live(compare());
       });
     } else {
@@ -927,7 +930,7 @@ export function signIn(): void { void requestSignIn().catch(() => undefined); }
 export function copyInvite(): void {
   const url = platform.inviteLink();
   if (!url) return;
-  try { clipboard.writeText(url); toast(S("copied"), "good"); } catch { toast(S("copyFail", { url })); }
+  try { clipboard.writeText(url); toast(S("inviteCopied"), "good"); } catch { toast(S("inviteLink", { link: url })); }
 }
 
 // ------------------------------------------------------------------ the keyboard / gamepad cursor (ui-input.js)
@@ -1243,10 +1246,7 @@ let autosave = 0;
 onFixedUpdate(() => {
   if (hidden) return;
   clockMs += 1000 / 60;
-  for (let i = 0; i < timers.length; i++) {
-    const t = timers[i]!;
-    if (t.at <= clockMs) { timers.splice(i--, 1); t.fn(); }
-  }
+  timers.advance(1 / 60);
   const s = app.session;
   if (s && app.phase === "active") {
     tickAcc += 1000 / 60;
@@ -1266,10 +1266,9 @@ onFixedUpdate(() => {
 let lookKey = "";
 function applyLook(): void {
   const f = frame();
-  const k = `${f.quality}:${f.levelIndex}`;
-  if (k === lookKey) return;
-  lookKey = k;
-  look = lookFor(f.quality, f.levelIndex);
+  if (f.level === lookKey) return;
+  lookKey = f.level;
+  look = lookFor(levelSettings(f.level));
   render.applyLook(look);
   if (!app.session) syncBackdrop();
 }
@@ -1323,9 +1322,10 @@ onRender(() => {
   const f = frame();
   render.update(frameDt, f.width, f.height);
   drawScreens();
-  for (const fn of pending.splice(0)) fn();
-  pointerInput(wasPlaying);
-  flushAnnouncements();
+  afterRender(() => { // after this frame's presses (added earlier), before the scene is synced and drawn
+    pointerInput(wasPlaying);
+    flushAnnouncements();
+  });
 });
 
 export type { Session };

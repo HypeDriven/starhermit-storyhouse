@@ -1,0 +1,21 @@
+# Tier bench: Journey 1, the house with pieces placed, story beats and sparks in the measured stretch.
+until 600 Scrapbook
+frames 30
+click =Play
+until 600 ⏱
+frames 220
+click =Biscuit
+frames 5
+click =Library, empty spot 1
+frames 120
+measure start
+frames 200
+click =Storybook
+frames 5
+click =Library, empty spot 2
+frames 29
+click =Biscuit in the Library, spot 1
+frames 5
+click =Storybook in the Library, spot 2
+frames 360
+measure stop

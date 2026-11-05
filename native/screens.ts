@@ -83,20 +83,9 @@ function button(b: Btn): void {
 }
 /** Buttons at their own widths in rows that wrap at `width` (flex-wrap). */
 function flow(label: string, list: Btn[], width: number, gap = 8, justify: "start" | "center" | "end" = "start"): ui.Rect {
-  const rows: Btn[][] = [[]];
-  let used = 0;
-  const bw = (b: Btn): number => Math.min(width, b.width ?? buttonWidth(b.text, b.style ?? "btn-menu"));
-  for (const b of list) {
-    const w = bw(b);
-    if (rows[rows.length - 1]!.length && used + gap + w > width) { rows.push([]); used = 0; }
-    used += (rows[rows.length - 1]!.length ? gap : 0) + w;
-    rows[rows.length - 1]!.push(b);
-  }
-  return ui.column(label, () => {
-    rows.forEach((row, ri) => ui.row(`${label}-r${ri}`, () => {
-      for (const b of row) button({ ...b, width: bw(b) });
-    }, { spacing: gap, width, justify, align: "center" }));
-  }, { spacing: gap, width });
+  return ui.row(label, () => {
+    for (const b of list) button(b.width != null ? { ...b, width: Math.min(width, b.width) } : buttonWidth(b.text, b.style ?? "btn-menu") > width ? { ...b, width } : b);
+  }, { wrap: true, width, gap, justify, align: "center" });
 }
 /** A box over a logical rectangle drawn by a placed role-none widget. */
 function paint(id: string, x: number, y: number, w: number, h: number, cls: string): void {

@@ -277,12 +277,13 @@ function applyMotion(): void {
 export function applyLook(next: Look): void {
   if (look && JSON.stringify(look) === JSON.stringify(next)) return;
   look = next;
-  renderer.bloom = next.bloom ? { model: "r160", strength: BLOOM.strength, radius: BLOOM.radius, threshold: BLOOM.threshold, resolution: next.budget.bloomRes } : null;
+  renderer.bloom = next.bloom !== null ? { model: "r160", strength: BLOOM.strength, radius: BLOOM.radius, threshold: BLOOM.threshold, resolution: next.bloom } : null;
   // GTAOPass: radius 0.45, distance exponent 1.4, thickness 1, 16 / 8 samples, the denoise per tier, blend 0.75.
-  renderer.ao = next.ao === "off" ? null : {
+  const ao = next.ao, fullAo = !!ao && ao.resolution >= 1; // the engine's AoQuality: resolution below 1 is "on", 1 is "high"
+  renderer.ao = !ao ? null : {
     blendIntensity: 0.75, radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1,
-    samples: next.ao === "high" ? 16 : 8, resolution: next.budget.aoRes,
-    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: next.ao === "high" ? 6 : 4, rings: 2, samples: next.ao === "high" ? 16 : 8, radiusExponent: 2 },
+    samples: ao.samples, resolution: ao.resolution,
+    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: fullAo ? 6 : 4, rings: 2, samples: ao.denoiseSamples, radiusExponent: 2 },
   };
   // GradeShader after OutputPass (display space): an 0.18-weight smoothstep S-curve, saturation 1.1, cool
   // shadows / warm highlights split by a 0.2–0.8 smoothstep of luma, clamp(s × 0.95) (levels), the 0.2 vignette 0.4–0.9 (y × 0.85).
@@ -296,7 +297,7 @@ export function applyLook(next: Look): void {
   moteCount = Math.min(MOTE_MAX, next.budget.motes);
   moteGeo.setDrawRange(0, moteCount);
   // With bloom on, sparks are pushed into HDR so they glow.
-  vfx.material.color.setScalar(next.bloom ? 1.9 : 1);
+  vfx.material.color.setScalar(next.bloom !== null ? 1.9 : 1);
   applyShadows();
   applyMotion();
   // Another shading model, mesh detail or room dressing rebuilds the session's house from the retained content.

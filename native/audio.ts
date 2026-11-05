@@ -9,19 +9,18 @@
 // the quiet ambience bed per theme (birds, hearth, waves, crickets, wind:
 // filtered noise with a slow sweep and its sparse chirps or crackles).
 //
-// A live synthesis graph on the web makes clip loads fail (port lessons), so
-// everything synthesized is rendered once into clips (sine tables, a slice a
-// frame) and played as clips: the music as a 16-beat loop per theme in three
-// stems started together, whose layer gains follow the progress; the
-// ambience as a 10-second loop (whole sweep cycles, a crossfaded seam). The
-// runtime has three buses: music and the ambience play on music (the
-// ambience at the old ambience-to-music volume ratio), effects and the voice
-// mumbles on effects (the voice at the old voice-to-effects ratio); the
-// runtime's Options own the volumes and the mute; the game's M key mutes the
-// game's sounds as the old Mute did. Captions for meaningful audio go to
-// main.ts (its captions line). Clips load once the mixer runs (natively at
-// once, in a browser after the first press), one at a time.
-import { context, createClip, loadClip, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
+// Everything synthesized is rendered once into clips (OfflineAudioContext) and
+// played as clips: the music as a 16-beat loop per theme in three stems started
+// together, whose layer gains follow the progress; the ambience as a 10-second
+// loop (whole sweep cycles over a 10 s noise loop: periodic, no seam). The
+// runtime has three buses: music and the ambience play on music (the ambience
+// at the old ambience-to-music volume ratio), effects and the voice mumbles on
+// effects (the voice at the old voice-to-effects ratio); the runtime's Options
+// own the volumes and the mute; the game's M key is the engine's game mute.
+// Captions for meaningful audio go to main.ts (its captions line). Clips load
+// and renders start at once; the beds start once the mixer runs (in a browser,
+// after the first press).
+import { OfflineAudioContext, context, createClip, isMuted, loadClip, play as playClip, setMuted as muteGame, type AudioClip, type Sound } from "starhermit:audio";
 import { Rngs, type Theme } from "./game.ts";
 
 /** audio.js SAMPLE_FILES. */
@@ -51,14 +50,15 @@ const VOICE_GAIN = Math.pow(0.65, 2) / Math.pow(0.8, 2);
 
 let captionHook: (key: string) => void = () => undefined;
 export function onCaption(fn: (key: string) => void): void { captionHook = fn; }
-let muted = false;
 let suspended = false;
 const clips = new Map<string, AudioClip>();
-const queue: string[] = [];
-let loading = false;
-let wantClips = false;
-/** Asks for the clips; they load once the mixer runs (see update). */
-export function loadSfx(): void { wantClips = true; }
+/** Loads every clip and renders the cues at once (onStart); a cue whose clip is still loading is skipped. */
+export function loadSfx(): void {
+  for (const f of new Set([...Object.values(SAMPLE_FILES), ...Object.values(SAMPLE_LAYERS).flat()])) {
+    loadClip(`sfx/${f}.opus`).then((c) => { clips.set(f, c); }, (e: unknown) => console.warn(`sfx ${f}: ${e instanceof Error ? e.message : String(e)}`));
+  }
+  void renderCues();
+}
 
 // --- the clock for cues played later in a phrase (the engine's play has no delay) --------------------
 let now = 0;
@@ -68,7 +68,7 @@ function at(delay: number, fn: () => void): void { if (delay <= 0) fn(); else la
 function playNamed(file: string, gain = 1): boolean {
   const clip = clips.get(file);
   if (!clip) return false;
-  try { playClip(clip, { bus: "effects", gain }); return true; } catch { clips.delete(file); if (!queue.includes(file)) queue.push(file); return false; }
+  try { playClip(clip, { bus: "effects", gain }); return true; } catch { return false; /* the mixer is full this frame */ }
 }
 /** The sample(s) for a logical event; false when none are ready. */
 function playSample(name: string, delay = 0): boolean {
@@ -77,7 +77,7 @@ function playSample(name: string, delay = 0): boolean {
   files.forEach((f, i) => { if (clips.has(f)) { ok = true; at(delay + i * 0.12, () => { playNamed(f); }); } });
   return ok;
 }
-const silent = (): boolean => muted || suspended;
+const silent = (): boolean => isMuted() || suspended;
 
 /** UI + rules event sounds (audio.js sfx). */
 export function sfx(name: string, delay = 0): void {
@@ -106,80 +106,63 @@ export function voiceBlip(character: string, r: { next(): number } | null = null
 
 // --- synthesis into clips -----------------------------------------------------------------------
 const RATE = 22050;
-const TABLE = 4096;
-const SINE = new Float32Array(TABLE + 1);
-for (let i = 0; i <= TABLE; i++) SINE[i] = Math.sin((i / TABLE) * Math.PI * 2);
 type Wave = "sine" | "triangle";
 interface Note {
   t0: number; freq: number; wave: Wave; peak: number;
   /** "exp": linear attack a, exponential decay to 0.0004 over d (audio.js _env); "pad": linear 0 → peak at a, → 0 at d. */
   env: "exp" | "pad"; a: number; d: number; slide?: number; noise?: { kind: "highpass"; f0: number };
 }
-/** Renders notes into a buffer of `len` samples, wrapping past the end (seamless loops); resumable by note. */
-class Job {
-  buf: Float32Array;
-  private i = 0;
-  private noiseState = 0x1234567;
-  done = false;
-  constructor(readonly notes: Note[], len: number, readonly wrap: boolean) { this.buf = new Float32Array(len); }
-  /** Renders up to `budget` samples' worth of notes; true when finished. */
-  step(budget: number): boolean {
-    let spent = 0;
-    while (this.i < this.notes.length && spent < budget) spent += this.render(this.notes[this.i++]!);
-    this.done = this.i >= this.notes.length;
-    return this.done;
+const NOISE_TRIM = 0.77; // a biquad high-pass passes more than audio.js's one-pole: back to the old rms
+const noteEnd = (n: Note): number => n.t0 + (n.env === "exp" ? n.a + n.d : n.d);
+function schedule(off: OfflineAudioContext, n: Note, seed: number): void {
+  const end = noteEnd(n);
+  const g = off.createGain();
+  g.gain.setValueAtTime(0, n.t0);
+  g.gain.linearRampToValueAtTime(n.peak * (n.noise ? NOISE_TRIM : 1), n.t0 + n.a);
+  if (n.env === "exp") g.gain.exponentialRampToValueAtTime(0.0004, end); else g.gain.linearRampToValueAtTime(0, end);
+  g.connect(off.destination);
+  if (n.noise) {
+    const src = off.createNoise({ color: "white", seed, seconds: 1 });
+    const hp = off.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = n.noise.f0; hp.Q.value = -3;
+    src.connect(hp).connect(g);
+    src.start(n.t0); src.stop(end);
+    return;
   }
-  private render(n: Note): number {
-    const len = this.buf.length;
-    const s0 = Math.round(n.t0 * RATE);
-    const total = Math.round((n.env === "exp" ? n.a + n.d : n.d) * RATE);
-    let phase = 0;
-    const k = Math.log(0.0004 / n.peak);
-    let hp = 0, prev = 0;
-    for (let j = 0; j < total; j++) {
-      const t = j / RATE;
-      let g: number;
-      if (n.env === "pad") g = t < n.a ? (n.peak * t) / n.a : n.peak * Math.max(0, 1 - (t - n.a) / (n.d - n.a));
-      else g = t < n.a ? (n.peak * t) / n.a : n.peak * Math.exp((k * (t - n.a)) / n.d);
-      let v: number;
-      if (n.noise) {
-        this.noiseState = (this.noiseState * 1664525 + 1013904223) >>> 0;
-        const x = this.noiseState / 2147483648 - 1;
-        const rc = 1 / (2 * Math.PI * n.noise.f0), dt = 1 / RATE, al = rc / (rc + dt);
-        hp = al * (hp + x - prev);
-        prev = x;
-        v = hp;
-      } else {
-        const f = n.slide ? n.freq * Math.pow((Math.max(30, n.freq + n.slide)) / n.freq, Math.min(1, t / (n.a + n.d))) : n.freq;
-        phase += f / RATE;
-        phase -= Math.floor(phase);
-        if (n.wave === "sine") v = SINE[(phase * TABLE) | 0]!;
-        else v = 4 * Math.abs(phase - 0.5) - 1;
-      }
-      let idx = s0 + j;
-      if (idx >= len) { if (!this.wrap) break; idx %= len; }
-      this.buf[idx] = this.buf[idx]! + v * g;
-    }
-    return total;
-  }
+  const osc = off.createOscillator(); osc.type = n.wave; osc.frequency.setValueAtTime(n.freq, n.t0);
+  if (n.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, n.freq + n.slide), end);
+  osc.connect(g);
+  osc.start(n.t0); osc.stop(end);
 }
-const jobs: { name: string; job: Job; then: (clip: AudioClip) => void }[] = [];
+/** Renders notes into a buffer `seconds` long (in contexts of NOTES_A_CONTEXT, one at a time: the node limit); `wrap` folds what passes the end back to the start (seamless loops). */
+const NOTES_A_CONTEXT = 24;
+async function renderNotes(notes: Note[], seconds: number, wrap: boolean): Promise<Float32Array> {
+  const len = Math.ceil(seconds * RATE);
+  const out = new Float32Array(len);
+  for (let i = 0; i < notes.length; i += NOTES_A_CONTEXT) {
+    const part = notes.slice(i, i + NOTES_A_CONTEXT);
+    const tail = wrap ? Math.max(0, ...part.map(noteEnd)) - seconds : 0;
+    const off = new OfflineAudioContext(1, len + Math.max(0, Math.ceil(tail * RATE)), RATE);
+    part.forEach((n, k) => schedule(off, n, i + k + 1));
+    const r = (await off.startRendering()).getChannelData(0);
+    for (let k = 0; k < r.length; k++) { const at = k < len ? k : k % len; out[at] = out[at]! + r[k]!; }
+  }
+  return out;
+}
 const synth = new Map<string, AudioClip>();
-function want(name: string, notes: Note[], seconds: number, wrap: boolean, then: (clip: AudioClip) => void = (c) => { synth.set(name, c); }): void {
-  if (jobs.some((j) => j.name === name)) return;
-  jobs.push({ name, job: new Job(notes, Math.ceil(seconds * RATE), wrap), then });
-}
 function playSynth(name: string, gain: number): void {
   const clip = synth.get(name);
   if (!clip) return;
-  try { playClip(clip, { bus: "effects", gain }); } catch { synth.delete(name); }
+  try { playClip(clip, { bus: "effects", gain }); } catch { /* the mixer is full this frame */ }
 }
 const blip = (t0: number, freq: number, o: { wave?: Wave; a?: number; d?: number; peak?: number; slide?: number }): Note =>
   ({ t0, freq, wave: o.wave ?? "sine", env: "exp", a: o.a ?? 0.004, d: o.d ?? 0.18, peak: o.peak ?? 0.5, slide: o.slide });
-function wantCues(): void {
-  want("cursor", [blip(0, 980, { d: 0.04, peak: 0.12 })], 0.1, false);
-  want("sig", [1046, 1318, 1568].map((f, i) => blip(i * 0.07, f, { d: 0.5, peak: 0.2 })), 0.8, false);
-  want("hab", [{ t0: 0, freq: 0, wave: "sine", env: "exp", a: 0.003, d: 0.3, peak: 0.08, noise: { kind: "highpass", f0: 2400 } }], 0.4, false);
+async function renderCues(): Promise<void> {
+  const want = async (name: string, notes: Note[], seconds: number): Promise<void> => {
+    try { synth.set(name, createClip([await renderNotes(notes, seconds, false)], RATE)); } catch (e) { console.warn(`audio ${name}: ${String(e)}`); }
+  };
+  await want("cursor", [blip(0, 980, { d: 0.04, peak: 0.12 })], 0.1);
+  await want("sig", [1046, 1318, 1568].map((f, i) => blip(i * 0.07, f, { d: 0.5, peak: 0.2 })), 0.8);
+  await want("hab", [{ t0: 0, freq: 0, wave: "sine", env: "exp", a: 0.003, d: 0.3, peak: 0.08, noise: { kind: "highpass", f0: 2400 } }], 0.4);
   const pitch: Record<string, number> = { pip: 520, mabel: 380, otto: 240, luna: 440, biscuit: 620 };
   for (const [ch, p] of Object.entries(pitch)) {
     for (const syll of [2, 3]) {
@@ -189,13 +172,14 @@ function wantCues(): void {
         notes.push(blip(i * 0.1, f, { wave: "triangle", d: 0.09, peak: 0.2, slide: i % 2 ? -40 : 50 }));
         notes.push(blip(i * 0.1, f * 2.4, { d: 0.07, peak: 0.08 }));
       }
-      want(`voice-${ch}-${syll}`, notes, 0.1 * syll + 0.2, false);
+      await want(`voice-${ch}-${syll}`, notes, 0.1 * syll + 0.2);
     }
   }
 }
 
 // --- the theme music (audio.js startMusic / _scheduleBeat), rendered as a loop -----------------------
 const LOOP_BEATS = 16;
+const PAD_PEAK = 0.068; // audio.js 0.06, +1.1 dB: keeps the stem's old rms within 1 dB (the sine and detuned triangle beat from another phase)
 interface MusicSet { theme: string; base?: AudioClip; busy?: AudioClip; sparkle?: AudioClip; voices: Sound[] }
 let music: MusicSet | null = null;
 let musicTheme: Theme | null = null;
@@ -214,8 +198,8 @@ function musicNotes(th: Theme): { base: Note[]; busy: Note[]; sparkle: Note[]; s
     if (beat % 4 === 0) {
       for (const i of [0, 2, 4]) {
         const d = (i + ((beat / 4) % 2 ? 1 : 0)) % scale.length;
-        base.push({ t0, freq: deg(d) / 2, wave: "sine", env: "pad", a: beatLen * 1.5, d: beatLen * 4.2, peak: 0.06 });
-        base.push({ t0, freq: (deg(d) / 2) * 1.003, wave: "triangle", env: "pad", a: beatLen * 1.5, d: beatLen * 4.2, peak: 0.06 });
+        base.push({ t0, freq: deg(d) / 2, wave: "sine", env: "pad", a: beatLen * 1.5, d: beatLen * 4.2, peak: PAD_PEAK });
+        base.push({ t0, freq: (deg(d) / 2) * 1.003, wave: "triangle", env: "pad", a: beatLen * 1.5, d: beatLen * 4.2, peak: PAD_PEAK });
       }
     }
     // the melody walk: every even beat, odd beats as the progress rises (the busy stem)
@@ -230,6 +214,18 @@ function musicNotes(th: Theme): { base: Note[]; busy: Note[]; sparkle: Note[]; s
   }
   return { base, busy, sparkle, seconds: LOOP_BEATS * beatLen };
 }
+/** Renders a theme's three stems; dropped if the theme changed meanwhile. */
+function renderMusic(th: Theme): void {
+  const set: MusicSet = { theme: th.id, voices: [] };
+  music = set;
+  const notes = musicNotes(th);
+  void (async () => {
+    const stem = async (list: Note[]): Promise<AudioClip> => createClip([await renderNotes(list, notes.seconds, true)], RATE);
+    const base = await stem(notes.base), busy = await stem(notes.busy), sparkle = await stem(notes.sparkle);
+    if (music !== set) { base.dispose(); busy.dispose(); sparkle.dispose(); return; }
+    Object.assign(set, { base, busy, sparkle });
+  })().catch((e: unknown) => console.warn(`music: ${String(e)}`));
+}
 /** The music for a theme (audio.js setTheme + startMusic). */
 export function setTheme(th: Theme): void {
   musicTheme = th;
@@ -242,20 +238,18 @@ function stopMusic(): void {
   for (const v of music.voices) { try { v.stop(); } catch { /* gone */ } }
   for (const c of [music.base, music.busy, music.sparkle]) { try { c?.dispose(); } catch { /* gone */ } }
   music = null;
-  for (let i = jobs.length - 1; i >= 0; i--) if (jobs[i]!.name.startsWith("music-")) jobs.splice(i, 1);
 }
 /** Adaptive music follows progress (0 … 1). */
 export function setMusicIntensity(x: number): void {
   intensity = Math.max(0, Math.min(1, x));
   if (music?.voices.length === 3) {
-    try { music.voices[1]!.fade(silent() ? 0 : intensity, 0.8); music.voices[2]!.fade(silent() ? 0 : (intensity > 0.4 ? intensity : 0), 0.8); } catch { /* gone */ }
+    try { music.voices[1]!.fade(suspended ? 0 : intensity, 0.8); music.voices[2]!.fade(suspended ? 0 : (intensity > 0.4 ? intensity : 0), 0.8); } catch { /* gone */ }
   }
 }
 
 // --- the ambience bed (audio.js startAmbience), rendered as a 10 s loop ------------------------------
-const AMB_SECONDS = 10, FADE = 0.25;
+const AMB_SECONDS = 10;
 let ambience: { kind: string; clip?: AudioClip; voice?: Sound } | null = null;
-let ambJob: { kind: string; buf: Float32Array; i: number; st: number[]; rng: number } | null = null;
 const AMB: Record<string, { type: "lowpass" | "highpass" | "bandpass"; f0: number; gain: number; lfoF: number; lfoD: number }> = {
   birds: { type: "lowpass", f0: 500, gain: 0.05, lfoF: 0.1, lfoD: 60 },
   hearth: { type: "lowpass", f0: 320, gain: 0.09, lfoF: 0.5, lfoD: 40 },
@@ -263,32 +257,20 @@ const AMB: Record<string, { type: "lowpass" | "highpass" | "bandpass"; f0: numbe
   crickets: { type: "highpass", f0: 3800, gain: 0.012, lfoF: 11, lfoD: 800 },
   wind: { type: "bandpass", f0: 600, gain: 0.06, lfoF: 0.07, lfoD: 300 },
 };
-function stepAmbience(budget: number): boolean {
-  const j = ambJob!;
-  const cfg = AMB[j.kind] ?? AMB.birds!;
-  const n = j.buf.length;
-  const lfoF = Math.max(1, Math.round(cfg.lfoF * AMB_SECONDS)) / AMB_SECONDS;
-  const end = Math.min(n, j.i + budget);
-  let [x1, x2, y1, y2] = j.st as [number, number, number, number];
-  let b0 = 0, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
-  for (; j.i < end; j.i++) {
-    if ((j.i & 63) === 0) {
-      const f = Math.max(40, cfg.f0 + Math.sin(2 * Math.PI * lfoF * (j.i / RATE)) * cfg.lfoD);
-      const w = (2 * Math.PI * Math.min(f, RATE * 0.45)) / RATE, cs = Math.cos(w), al = Math.sin(w) / (2 * 0.6);
-      const a0 = 1 + al;
-      if (cfg.type === "lowpass") { b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = (1 - cs) / 2; }
-      else if (cfg.type === "highpass") { b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = (1 + cs) / 2; }
-      else { b0 = al; b1 = 0; b2 = -al; }
-      b0 /= a0; b1 /= a0; b2 /= a0; a1 = (-2 * cs) / a0; a2 = (1 - al) / a0;
-    }
-    j.rng = (j.rng * 1664525 + 1013904223) >>> 0;
-    const x = j.rng / 2147483648 - 1;
-    const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-    x2 = x1; x1 = x; y2 = y1; y1 = y;
-    j.buf[j.i] = y * cfg.gain;
-  }
-  j.st = [x1, x2, y1, y2];
-  return j.i >= n;
+/** White noise through the swept filter (whole LFO cycles in the 10 s noise loop, so periodic once the filter settled). */
+async function renderAmbienceBed(kind: string): Promise<Float32Array> {
+  const cfg = AMB[kind] ?? AMB.birds!;
+  const n = AMB_SECONDS * RATE, settle = Math.round(0.25 * RATE);
+  const off = new OfflineAudioContext(1, settle + n, RATE);
+  const noise = off.createNoise({ color: "white", seed: 0x9e3779b9, seconds: AMB_SECONDS });
+  const filter = off.createBiquadFilter(); filter.type = cfg.type; filter.frequency.value = cfg.f0;
+  filter.Q.value = cfg.type === "bandpass" ? 0.6 : 20 * Math.log10(0.6); // the old RBJ Q 0.6 (lowpass and highpass Q are in dB here)
+  const lfo = off.createOscillator(); lfo.frequency.value = Math.max(1, Math.round(cfg.lfoF * AMB_SECONDS)) / AMB_SECONDS;
+  const depth = off.createGain(); depth.gain.value = cfg.lfoD;
+  lfo.connect(depth).connect(filter.frequency); lfo.start();
+  const g = off.createGain(); g.gain.value = cfg.gain;
+  noise.connect(filter).connect(g).connect(off.destination); noise.start();
+  return (await off.startRendering()).getChannelData(0).slice(settle);
 }
 /** The ambience's sparse events (birds' chirps, the hearth's crackles, crickets) baked into the loop. */
 function ambienceEvents(kind: string): Note[] {
@@ -309,16 +291,23 @@ function ambienceEvents(kind: string): Note[] {
 function startAmbienceFor(kind: string): void {
   if (ambience?.kind === kind) return;
   if (ambience) { try { ambience.voice?.stop(); ambience.clip?.dispose(); } catch { /* gone */ } }
-  ambience = { kind };
-  ambJob = { kind, buf: new Float32Array(Math.ceil((AMB_SECONDS + FADE) * RATE)), i: 0, st: [0, 0, 0, 0], rng: 0x9e3779b9 };
+  const amb: { kind: string; clip?: AudioClip; voice?: Sound } = { kind };
+  ambience = amb;
+  void (async () => {
+    const bed = await renderAmbienceBed(kind);
+    const ev = await renderNotes(ambienceEvents(kind), AMB_SECONDS, true);
+    for (let i = 0; i < bed.length; i++) bed[i] = bed[i]! + ev[i]!;
+    const clip = createClip([bed], RATE);
+    if (ambience === amb) amb.clip = clip; else clip.dispose();
+  })().catch((e: unknown) => console.warn(`ambience: ${String(e)}`));
 }
 
 /** A hidden window silences the game (audio.js suspend); a pause keeps the music, as before. */
 export function setSuspended(on: boolean): void { if (on !== suspended) { suspended = on; applyGains(); } }
-/** The game's M key (audio.js setMuted). */
-export function setMuted(on: boolean): void { if (on !== muted) { muted = on; applyGains(); } }
+/** The game's M key: the engine's game mute (the option itself is saved by platform.ts). */
+export function setMuted(on: boolean): void { muteGame(on); }
 function applyGains(): void {
-  const off = silent();
+  const off = suspended;
   try {
     if (music?.voices.length === 3) {
       music.voices[0]!.fade(off ? 0 : 1, 0.2);
@@ -329,43 +318,18 @@ function applyGains(): void {
   } catch { /* gone */ }
 }
 
-let cuesWanted = false;
-/** Each frame: due cues, the clips once the mixer runs (one at a time), then a slice of synthesis. */
+/** Each frame: due cues, the theme's renders, and the beds once the mixer runs. */
 export function update(dt: number): void {
   now += dt;
   for (let i = later.length - 1; i >= 0; i--) {
     if (later[i]!.at <= now) { const f = later[i]!.fn; later.splice(i, 1); if (!silent()) f(); }
   }
+  if (musicWanted && musicTheme && !music) renderMusic(musicTheme);
+  if (musicTheme) startAmbienceFor(musicTheme.ambience);
   if (context.state !== "running") return;
-  if (wantClips) {
-    wantClips = false;
-    for (const f of [...Object.values(SAMPLE_FILES), ...Object.values(SAMPLE_LAYERS).flat()]) if (!queue.includes(f) && !clips.has(f)) queue.push(f);
-  }
-  if (!cuesWanted) { cuesWanted = true; wantCues(); }
-  if (!loading && queue.length) {
-    const name = queue.shift()!;
-    if (!clips.has(name)) {
-      loading = true;
-      loadClip(`sfx/${name}.opus`).then((c) => { clips.set(name, c); loading = false; }, (e: unknown) => {
-        console.warn(`sfx ${name}: ${e instanceof Error ? e.message : String(e)}`);
-        loading = false;
-      });
-    }
-    return;
-  }
-  // the theme's music
-  if (musicWanted && musicTheme && !music) {
-    const th = musicTheme;
-    const set: MusicSet = { theme: th.id, voices: [] };
-    music = set;
-    const notes = musicNotes(th);
-    want("music-base", notes.base, notes.seconds, true, (c) => { set.base = c; });
-    want("music-busy", notes.busy, notes.seconds, true, (c) => { set.busy = c; });
-    want("music-sparkle", notes.sparkle, notes.seconds, true, (c) => { set.sparkle = c; });
-  }
   if (music && music.base && music.busy && music.sparkle && !music.voices.length) {
     try {
-      const off = silent();
+      const off = suspended;
       music.voices = [
         playClip(music.base, { bus: "music", loop: true, gain: off ? 0 : 1 }),
         playClip(music.busy, { bus: "music", loop: true, gain: off ? 0 : intensity }),
@@ -373,34 +337,7 @@ export function update(dt: number): void {
       ];
     } catch (e) { console.warn(`music: ${String(e)}`); music.voices = []; }
   }
-  // the ambience
-  if (musicTheme) startAmbienceFor(musicTheme.ambience);
-  let budget = 24000;
-  if (ambJob && ambience && !ambience.clip) {
-    if (stepAmbience(budget)) {
-      const j = ambJob;
-      const ev = new Job(ambienceEvents(j.kind), j.buf.length, true);
-      ev.step(1e9);
-      const n = Math.round(AMB_SECONDS * RATE), f = Math.round(FADE * RATE);
-      const out = new Float32Array(n);
-      for (let i = 0; i < n; i++) out[i] = j.buf[i]! + ev.buf[i]!;
-      for (let i = 0; i < f; i++) { const k = i / f; out[i] = out[i]! * k + (j.buf[n + i]! + ev.buf[n + i]!) * (1 - k); }
-      try {
-        ambience.clip = createClip([out], RATE);
-        ambience.voice = playClip(ambience.clip, { bus: "music", loop: true, gain: silent() ? 0 : AMBIENCE_GAIN });
-      } catch (e) { console.warn(`ambience: ${String(e)}`); }
-      ambJob = null;
-    }
-    return;
-  }
-  while (jobs.length && budget > 0) {
-    const j = jobs[0]!;
-    const before = budget;
-    if (j.job.step(budget)) {
-      jobs.shift();
-      try { j.then(createClip([j.job.buf], RATE)); } catch (e) { console.warn(`audio ${j.name}: ${String(e)}`); }
-    }
-    budget -= Math.max(1, before === budget ? before : 8000);
-    break;
+  if (ambience?.clip && !ambience.voice) {
+    try { ambience.voice = playClip(ambience.clip, { bus: "music", loop: true, gain: suspended ? 0 : AMBIENCE_GAIN }); } catch (e) { console.warn(`ambience: ${String(e)}`); }
   }
 }
