@@ -20,6 +20,7 @@
 // Captions for meaningful audio go to main.ts (its captions line). Clips load
 // and renders start at once; the beds start once the mixer runs (in a browser,
 // after the first press).
+import { nextFrame } from "starhermit:engine";
 import { OfflineAudioContext, context, createClip, isMuted, loadClip, play as playClip, setMuted as muteGame, type AudioClip, type Sound } from "starhermit:audio";
 import { Rngs, type Theme } from "./game.ts";
 
@@ -133,6 +134,15 @@ function schedule(off: OfflineAudioContext, n: Note, seed: number): void {
   osc.connect(g);
   osc.start(n.t0); osc.stop(end);
 }
+/** A finished context still counts against the engine's 16 until the collector finds it (there is no close): past that, wait for it. */
+async function offlineContext(length: number): Promise<OfflineAudioContext> {
+  for (;;) {
+    try { return new OfflineAudioContext(1, length, RATE); } catch (e) {
+      if (!(e instanceof RangeError)) throw e;
+      await new Promise<void>((resolve) => { nextFrame(() => resolve()); });
+    }
+  }
+}
 /** Renders notes into a buffer `seconds` long (in contexts of NOTES_A_CONTEXT, one at a time: the node limit); `wrap` folds what passes the end back to the start (seamless loops). */
 const NOTES_A_CONTEXT = 24;
 async function renderNotes(notes: Note[], seconds: number, wrap: boolean): Promise<Float32Array> {
@@ -141,7 +151,7 @@ async function renderNotes(notes: Note[], seconds: number, wrap: boolean): Promi
   for (let i = 0; i < notes.length; i += NOTES_A_CONTEXT) {
     const part = notes.slice(i, i + NOTES_A_CONTEXT);
     const tail = wrap ? Math.max(0, ...part.map(noteEnd)) - seconds : 0;
-    const off = new OfflineAudioContext(1, len + Math.max(0, Math.ceil(tail * RATE)), RATE);
+    const off = await offlineContext(len + Math.max(0, Math.ceil(tail * RATE)));
     part.forEach((n, k) => schedule(off, n, i + k + 1));
     const r = (await off.startRendering()).getChannelData(0);
     for (let k = 0; k < r.length; k++) { const at = k < len ? k : k % len; out[at] = out[at]! + r[k]!; }
@@ -156,13 +166,19 @@ function playSynth(name: string, gain: number): void {
 }
 const blip = (t0: number, freq: number, o: { wave?: Wave; a?: number; d?: number; peak?: number; slide?: number }): Note =>
   ({ t0, freq, wave: o.wave ?? "sine", env: "exp", a: o.a ?? 0.004, d: o.d ?? 0.18, peak: o.peak ?? 0.5, slide: o.slide });
+/** Every cue laid end to end in one render, then cut into clips: contexts are scarce (see offlineContext). */
 async function renderCues(): Promise<void> {
-  const want = async (name: string, notes: Note[], seconds: number): Promise<void> => {
-    try { synth.set(name, createClip([await renderNotes(notes, seconds, false)], RATE)); } catch (e) { console.warn(`audio ${name}: ${String(e)}`); }
+  const parts: { name: string; at: number; seconds: number }[] = [];
+  const all: Note[] = [];
+  let end = 0;
+  const want = (name: string, notes: Note[], seconds: number): void => {
+    parts.push({ name, at: end, seconds });
+    for (const n of notes) all.push({ ...n, t0: n.t0 + end });
+    end += seconds;
   };
-  await want("cursor", [blip(0, 980, { d: 0.04, peak: 0.12 })], 0.1);
-  await want("sig", [1046, 1318, 1568].map((f, i) => blip(i * 0.07, f, { d: 0.5, peak: 0.2 })), 0.8);
-  await want("hab", [{ t0: 0, freq: 0, wave: "sine", env: "exp", a: 0.003, d: 0.3, peak: 0.08, noise: { kind: "highpass", f0: 2400 } }], 0.4);
+  want("cursor", [blip(0, 980, { d: 0.04, peak: 0.12 })], 0.1);
+  want("sig", [1046, 1318, 1568].map((f, i) => blip(i * 0.07, f, { d: 0.5, peak: 0.2 })), 0.8);
+  want("hab", [{ t0: 0, freq: 0, wave: "sine", env: "exp", a: 0.003, d: 0.3, peak: 0.08, noise: { kind: "highpass", f0: 2400 } }], 0.4);
   const pitch: Record<string, number> = { pip: 520, mabel: 380, otto: 240, luna: 440, biscuit: 620 };
   for (const [ch, p] of Object.entries(pitch)) {
     for (const syll of [2, 3]) {
@@ -172,9 +188,16 @@ async function renderCues(): Promise<void> {
         notes.push(blip(i * 0.1, f, { wave: "triangle", d: 0.09, peak: 0.2, slide: i % 2 ? -40 : 50 }));
         notes.push(blip(i * 0.1, f * 2.4, { d: 0.07, peak: 0.08 }));
       }
-      await want(`voice-${ch}-${syll}`, notes, 0.1 * syll + 0.2);
+      want(`voice-${ch}-${syll}`, notes, 0.1 * syll + 0.2);
     }
   }
+  try {
+    const buf = await renderNotes(all, end, false);
+    for (const p of parts) {
+      const from = Math.round(p.at * RATE);
+      synth.set(p.name, createClip([buf.slice(from, from + Math.ceil(p.seconds * RATE))], RATE));
+    }
+  } catch (e) { console.warn(`audio cues: ${String(e)}`); }
 }
 
 // --- the theme music (audio.js startMusic / _scheduleBeat), rendered as a loop -----------------------
@@ -261,7 +284,7 @@ const AMB: Record<string, { type: "lowpass" | "highpass" | "bandpass"; f0: numbe
 async function renderAmbienceBed(kind: string): Promise<Float32Array> {
   const cfg = AMB[kind] ?? AMB.birds!;
   const n = AMB_SECONDS * RATE, settle = Math.round(0.25 * RATE);
-  const off = new OfflineAudioContext(1, settle + n, RATE);
+  const off = await offlineContext(settle + n);
   const noise = off.createNoise({ color: "white", seed: 0x9e3779b9, seconds: AMB_SECONDS });
   const filter = off.createBiquadFilter(); filter.type = cfg.type; filter.frequency.value = cfg.f0;
   filter.Q.value = cfg.type === "bandpass" ? 0.6 : 20 * Math.log10(0.6); // the old RBJ Q 0.6 (lowpass and highpass Q are in dB here)

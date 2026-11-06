@@ -388,7 +388,7 @@ export function startSession(setup: Setup, restored: Session | null = null): voi
   const step = (): void => {
     if (app.session !== s) return;
     if (i < seq.length) {
-      app.countdown = T(seq[i]!);
+      app.countdown = seq[i] === "Go" ? T("Go") : seq[i]!; // digits are not strings to translate
       sound(i === seq.length - 1 ? "go" : "countdown");
       i++;
       after(preferences().reducedMotion ? 500 : 700, step, "countdown");
