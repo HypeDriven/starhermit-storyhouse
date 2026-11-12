@@ -1,3 +1,4 @@
+import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // Storyhouse on the StarHermit engine: the entry module (starhermit.txt
 // engine.entry), played natively by the StarHermit client and in browsers by
 // the engine's web runtime. The rules (src/rules.js), content
@@ -1317,7 +1318,7 @@ onUpdate((dt) => {
   audio.update(dt);
   padOrbit();
 });
-onRender(() => {
+onRender(__l10nRender(() => {
   const wasPlaying = playing();
   const f = frame();
   render.update(frameDt, f.width, f.height);
@@ -1326,6 +1327,10 @@ onRender(() => {
     pointerInput(wasPlaying);
     flushAnnouncements();
   });
-});
+}));
 
 export type { Session };
+
+// localization-runtime:menu
+import { installLanguageMenu as __installLanguageMenu } from "./l10n/menu.ts";
+__installLanguageMenu(false);
