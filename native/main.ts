@@ -113,8 +113,7 @@ function flushAnnouncements(): void {
   spokenAssertive = false;
 }
 export function toast(text: string, kind: Toast["kind"] = ""): void {
-  app.toasts.push({ text, kind, until: clockMs + 3400 });
-  if (app.toasts.length > 4) app.toasts.shift();
+  ui.toast!(text, { kind: kind === "bad" ? "error" : kind === "good" ? "success" : "info", duration: 3.4, position: "bottom", offset: 22, style: kind === "bad" ? "toast-bad" : kind === "good" ? "toast-good" : "toast", dismissible: false });
   live(text);
   if (kind !== "bad") audio.sfx("toast");
 }
