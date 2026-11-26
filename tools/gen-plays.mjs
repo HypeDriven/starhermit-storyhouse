@@ -160,7 +160,9 @@ function playStory(sc, content, commands, label) {
 const LESSON_PLANS = {
   'learn-1': [{ type: 'place', item: 'pip', room: 'kitchen', slot: 0 }],
   'learn-2': [{ type: 'place', item: 'otto', room: 'kitchen', slot: 0 }, { type: 'place', item: 'teapot', room: 'kitchen', slot: 1 }, { type: 'interact', room: 'kitchen', a: 'otto', b: 'teapot' }],
-  'learn-3': [{ type: 'place', item: 'mabel', room: 'kitchen', slot: 0 }, { type: 'move', item: 'mabel', room: 'garden', slot: 1 }, { type: 'place', item: 'fern', room: 'library', slot: 0 }, { type: 'remove', item: 'fern' }],
+  // (Garden Room spot 1, not 2: on a 390x844 phone the Actions drawer toggle covers spot 2's centre, so a touch
+  // there opens the drawer instead of moving Mabel; a player taps the ring they can see)
+  'learn-3': [{ type: 'place', item: 'mabel', room: 'kitchen', slot: 0 }, { type: 'move', item: 'mabel', room: 'garden', slot: 0 }, { type: 'place', item: 'fern', room: 'library', slot: 0 }, { type: 'remove', item: 'fern' }],
   // (ground-floor rooms: on a phone the drawer toggles sit over the upper floor)
   'learn-4': [{ type: 'place', item: 'luna', room: 'kitchen', slot: 0 }, { type: 'place', item: 'biscuit', room: 'kitchen', slot: 1 }, { type: 'interact', room: 'kitchen', a: 'luna', b: 'biscuit' }],
   'learn-5': [{ type: 'place', item: 'pip', room: 'library', slot: 0 }, { type: 'place', item: 'clock', room: 'library', slot: 1 }, { type: 'interact', room: 'library', a: 'pip', b: 'clock' }],
