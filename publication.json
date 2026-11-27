@@ -12,7 +12,7 @@
     "metadataSource": "starhermit.txt",
     "createdAt": "2026-08-17T16:41:42.143747+00:00",
     "coverArtSource": "manifest",
-    "coverArtUpdatedAt": "2026-11-26T22:35:05.670119+00:00",
+    "coverArtUpdatedAt": "2026-11-27T17:08:00.76554+00:00",
     "submittedByUserId": "2712e04e-461b-4d23-81ae-e40b429128a8",
     "submittedByUsername": "starhermit",
     "hosting": {
@@ -22,9 +22,9 @@
       "pinnedCommitSha": null,
       "deployedCommitSha": null,
       "deployError": null,
-      "deployedAt": "2026-11-26T22:35:05.659105+00:00",
+      "deployedAt": "2026-11-27T17:08:00.755179+00:00",
       "externalLaunchUrl": null,
-      "engineVersion": "1.51.0",
+      "engineVersion": "1.53.0",
       "deployWarning": null
     },
     "description": "Arrange characters and props across dollhouse rooms to create and save your own open-ended stories.",
@@ -36,19 +36,19 @@
     "links": [],
     "isDisabled": false
   },
-  "publishedAt": "2026-11-26T22:35:06.078Z",
-  "sourceCommit": "867b6ee39b3bbf9e97c7154d48c23903cd9c7c7f",
-  "bytesReceived": 2608084,
-  "archiveSha256": "87a318032943c2bbdd5c68814192c9f5a734b0245fb71fe0efb53532c2a6eb69",
+  "publishedAt": "2026-11-27T17:08:00.934Z",
+  "sourceCommit": "ccf10164fe1ba54d8676cd89aad8d45f0cb7f53e",
+  "bytesReceived": 2608076,
+  "archiveSha256": "652d26f820426df4ee0cf8822a7c936b3e3ef82a062965208cdb47d8a2a32e08",
   "indexSha256": "cb723498382b41ad27d509ec8b651d476cf69370c3d2425b50175ecd536c526b",
   "result": {
     "clientPublished": true,
     "serverImageLoaded": false,
     "imageDigest": null,
-    "bytesReceived": 2608084,
+    "bytesReceived": 2608076,
     "mode": "replace",
     "filesRemoved": 0,
-    "engineVersion": "1.51.0",
+    "engineVersion": "1.53.0",
     "deployWarning": null
   },
   "liveVerification": {
