@@ -58,7 +58,6 @@ export function loadSfx(): void {
   for (const f of new Set([...Object.values(SAMPLE_FILES), ...Object.values(SAMPLE_LAYERS).flat()])) {
     loadClip(`sfx/${f}.opus`).then((c) => { clips.set(f, c); }, (e: unknown) => console.warn(`sfx ${f}: ${e instanceof Error ? e.message : String(e)}`));
   }
-  void renderCues();
 }
 
 // --- the clock for cues played later in a phrase (the engine's play has no delay) --------------------
@@ -342,7 +341,17 @@ function applyGains(): void {
 }
 
 /** Each frame: due cues, the theme's renders, and the beds once the mixer runs. */
+let __bedsStarted = false;
+function startBeds(): void {
+  if (__bedsStarted) return;
+  __bedsStarted = true;
+  void (async () => {
+    void renderCues();
+  })();
+}
+
 export function update(dt: number): void {
+  startBeds();
   now += dt;
   for (let i = later.length - 1; i >= 0; i--) {
     if (later[i]!.at <= now) { const f = later[i]!.fn; later.splice(i, 1); if (!silent()) f(); }
